@@ -86,6 +86,8 @@ button.minor:hover{color:var(--paper);background:var(--panel)}
 .card details summary{cursor:pointer;padding:6px 16px;font-size:12px;color:var(--dim);letter-spacing:.1em}
 .card details pre{max-height:300px;overflow:auto;padding:10px 16px;font-size:11px;color:var(--paper);background:var(--ink)}
 .card iframe{width:100%;height:860px;border:0;display:block;background:#fff}
+.frameBox summary{color:var(--gold-dim) !important}
+.frameBox[open] summary{border-bottom:1px solid var(--line)}
 
 /* ── 方法論摺疊區 ── */
 #method{max-width:1180px;margin:34px auto 0;border-top:1px solid var(--line);padding-top:10px}
@@ -332,7 +334,9 @@ ENGINES.forEach(eng=>{
       <span class="status idle" id="st_${eng.key}">載入中…</span>
     </div>
     <details><summary>原生回傳物件（錄取自引擎本人之呼叫）</summary><pre class="mono" id="raw_${eng.key}">（尚未起盤）</pre></details>
-    <iframe id="fr_${eng.key}" src="${eng.path}" title="${eng.name}" loading="lazy"></iframe>`;
+    <details class="frameBox"><summary>展開盤面細看 · 盤由引擎本人繪製，展開收合皆不重算</summary>
+      <iframe id="fr_${eng.key}" src="${eng.path}" title="${eng.name}"></iframe>
+    </details>`;
   enginesEl.appendChild(card);
 });
 
