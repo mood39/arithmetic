@@ -127,15 +127,28 @@ button.minor:hover{color:var(--paper);background:var(--panel)}
     <label class="toggle"><input type="checkbox" id="canonLateZi" checked> 夜子時歸翌日</label>
   </div>
 
-  <div class="groupTag">命主（供紫微命盤與六壬年命行年）</div>
+  <div class="groupTag">命主（紫微命盤全參用；六壬年命僅取生年性別；餘三家古法無此設計）</div>
   <div class="row">
+    <label class="f">曆別
+      <select id="canonCalType"><option value="">載入中…</option></select>
+    </label>
     <label class="f">生年（西元）
-      <input type="number" id="canonBy" placeholder="例 1990" min="1900" max="2030">
+      <input type="number" id="canonBy" placeholder="例 1990" min="1900" max="2030" style="min-width:90px">
+    </label>
+    <label class="f">生月
+      <input type="number" id="canonBm" min="1" max="12" style="min-width:64px">
+    </label>
+    <label class="f">生日
+      <input type="number" id="canonBd" min="1" max="31" style="min-width:64px">
+    </label>
+    <label class="toggle"><input type="checkbox" id="canonLeap"> 閏月</label>
+    <label class="f">時辰
+      <select id="canonHour"><option value="">載入中…</option></select>
     </label>
     <label class="f">性別
       <select id="canonGender"><option value="">—</option><option>男</option><option>女</option></select>
     </label>
-    <span class="f" style="justify-content:flex-end;color:var(--dim);font-size:12px;padding-bottom:8px">留空則六壬不啟用年命，屬非個人化全集</span>
+    <span class="f" style="justify-content:flex-end;color:var(--dim);font-size:12px;padding-bottom:8px">未填全則紫微此輪不起盤；生年性別備妥即啟六壬年命</span>
   </div>
 
   <div class="groupTag">問事與排法（選項取自各引擎本身，永不另列）</div>
@@ -149,7 +162,13 @@ button.minor:hover{color:var(--paper);background:var(--panel)}
     <label class="f">六爻 · 起卦法
       <select id="optLiuyaoMode"><option value="mY">蓍法（大衍揲蓍）</option><option value="mC">錢法（三錢）</option></select>
     </label>
-    <!-- 太乙 school、奇門 method、紫微參數：探測完成後於此接入 -->
+    <label class="f">太乙 · 系統
+      <select id="optTaiyiSystem"><option value="">載入中…</option></select>
+    </label>
+    <label class="f">太乙 · 派法
+      <select id="optTaiyiSchool"><option value="">載入中…</option></select>
+    </label>
+    <!-- 奇門 method（轉盤/飛盤）切換入口待與引擎確認後接入 -->
   </div>
 
   <div class="row" style="margin-top:6px">
@@ -199,13 +218,80 @@ function report(cls, tag, msg){
 const ENGINES = [
   {
     key:"taiyi",  name:"太乙神數", seal:"天", role:"大勢 · 天時 · 值運",
-    path:"/Taiyishenshu/", wired:false,
+    path:"/Taiyishenshu/", wired:true,
     probeGlobals:["compute","computeHour"],
+    patch(win, rec){
+      ["compute","computeHour"].forEach(fn=>{
+        const orig = win[fn];
+        if(typeof orig !== "function") return;
+        win[fn] = function(...a){
+          const r = orig.apply(this, a);
+          rec.data = rec.data || {};
+          rec.data[fn] = r; rec.at = Date.now();
+          return r;
+        };
+      });
+    },
+    harvest(doc){
+      cloneOptions(doc, "inSystem", $("optTaiyiSystem"));
+      cloneOptions(doc, "inSchool", $("optTaiyiSchool"));
+    },
+    drive(win, doc, canon){
+      setSelect(doc, "inSystem", canon.taiyiSystem);
+      setSelect(doc, "inSchool", canon.taiyiSchool);
+      doc.getElementById("inYear").value  = parseInt(canon.dtLocal.slice(0,4));
+      doc.getElementById("inMonth").value = parseInt(canon.dtLocal.slice(5,7));
+      doc.getElementById("inDay").value   = parseInt(canon.dtLocal.slice(8,10));
+      doc.getElementById("inTime").value  = canon.dtLocal.slice(11,16);
+      doc.getElementById("useTST").checked = canon.tst;
+      doc.getElementById("tsLon").value = canon.lon;
+      doc.getElementById("calcBtn").click();
+    },
+    expect:null,   /* 首盤錄取、檢視原生物件後鎖定欄位契約 */
   },
   {
     key:"ziwei",  name:"紫微斗數", seal:"命", role:"先天結構 · 大限流年",
-    path:"/ziwei/", wired:false,
+    path:"/ziwei/", wired:true,
     probeGlobals:["iztro"],
+    canRun(c){
+      const b = c.birth;
+      return (b.y && b.m && b.d && b.hourVal && c.gender)
+        ? true : "命主生辰或性別未填全 · 此輪未起盤";
+    },
+    patch(win, rec){
+      const a = win.iztro && win.iztro.astro;
+      if(!a) throw new Error("iztro.astro 未見");
+      ["bySolar","byLunar"].forEach(fn=>{
+        if(typeof a[fn] !== "function") return;
+        const orig = a[fn].bind(a);
+        a[fn] = function(...args){
+          const r = orig(...args);
+          rec.data = r; rec.at = Date.now();
+          return r;
+        };
+      });
+    },
+    harvest(doc){
+      cloneOptions(doc, "calType", $("canonCalType"));
+      cloneOptions(doc, "hourInput", $("canonHour"));
+    },
+    drive(win, doc, canon){
+      const back = doc.getElementById("backBtn");
+      if(back){ try{ back.click(); }catch(e){} }        /* 若停在盤面視圖，先返表單 */
+      const nm = doc.getElementById("nameInput");
+      if(nm && !nm.value) nm.value = "命主";
+      setSelect(doc, "calType", canon.birth.cal);
+      doc.getElementById("yearInput").value  = canon.birth.y;
+      doc.getElementById("monthInput").value = canon.birth.m;
+      doc.getElementById("dayInput").value   = canon.birth.d;
+      const leap = doc.getElementById("leapInput");
+      if(leap) leap.checked = !!canon.birth.leap;
+      setSelect(doc, "hourInput", canon.birth.hourVal);
+      if(!setGender(doc, canon.gender))
+        report("warn","紫微斗數","性別控件未尋獲（探測無 id）——請貼該欄位 HTML 片段，下輪換精準接點。");
+      doc.getElementById("submitBtn").click();
+    },
+    expect:["palaces"],
   },
   {
     key:"liuren", name:"大六壬",   seal:"人", role:"人事 · 事應 · 年命",
@@ -311,9 +397,29 @@ function cloneOptions(doc, srcId, destSel){
 }
 function setSelect(doc, id, val){
   const s = doc.getElementById(id);
-  if(!s || val == null) return;
-  const hit = [...s.options].find(o => (o.value||o.text) === val || o.text === val);
-  if(hit) s.value = hit.value || hit.text;
+  if(!s || val == null || val === "") return;
+  setSelectEl(s, val);
+}
+function setSelectEl(s, val){
+  const opts = [...s.options];
+  const hit = opts.find(o => (o.value||o.text) === val || o.text === val)
+           || opts.find(o => o.text.includes(val) || String(o.value).includes(val))
+           || opts.find(o => typeof val === "string" && val.includes(o.text));
+  if(hit) s.value = hit.value;
+}
+/* 性別控件通用尋找：id → radio（值或標籤含男/女）→ 任一選項含男/女之 select */
+function setGender(doc, g){
+  if(!g) return false;
+  const byId = doc.querySelector('#gender,#genderInput,select[id*="ender"],select[name*="ender"]');
+  if(byId){ setSelectEl(byId, g); return true; }
+  const radios = [...doc.querySelectorAll('input[type="radio"]')];
+  const hit = radios.find(r => r.value === g
+      || (r.value && String(r.value).includes(g))
+      || (r.closest("label") && r.closest("label").textContent.includes(g)));
+  if(hit){ hit.click(); return true; }
+  const sel = [...doc.querySelectorAll("select")].find(s => [...s.options].some(o => /男|女/.test(o.text)));
+  if(sel){ setSelectEl(sel, g); return true; }
+  return false;
 }
 function pad(n){ return String(n).padStart(2,"0"); }
 
@@ -407,6 +513,16 @@ function gatherCanon(){
     lateZi: $("canonLateZi").checked,
     birthYear: parseInt($("canonBy").value) || null,
     gender: $("canonGender").value || null,
+    birth: {
+      cal: $("canonCalType").value || null,
+      y: parseInt($("canonBy").value) || null,
+      m: parseInt($("canonBm").value) || null,
+      d: parseInt($("canonBd").value) || null,
+      leap: $("canonLeap").checked,
+      hourVal: $("canonHour").value || null,
+    },
+    taiyiSystem: $("optTaiyiSystem").value || null,
+    taiyiSchool: $("optTaiyiSchool").value || null,
     liurenEvent: $("optLiurenEvent").value,
     liuyaoCat: $("optLiuyaoCat").value,
     liuyaoMode: $("optLiuyaoMode").value,
@@ -420,6 +536,10 @@ $("castAll").onclick = ()=>{
   $("castNote").textContent = "";
   ENGINES.forEach(eng=>{
     if(!eng.wired) return;
+    if(eng.canRun){
+      const ok = eng.canRun(canon);
+      if(ok !== true){ setStatus(eng.key,"warn",ok); return; }
+    }
     const fr = FRAMES[eng.key];
     let win, doc;
     try{ win = fr.contentWindow; doc = fr.contentDocument; }
@@ -439,12 +559,16 @@ $("castAll").onclick = ()=>{
         report("warn", eng.name, "按鈕已按下但未錄得計算結果——計算入口可能未被觸發或已改名。");
         return;
       }
-      const missing = (eng.expect||[]).filter(f => !(f in rec.data));
-      if(missing.length){
-        setStatus(eng.key,"warn","欄位契約警示");
-        report("warn", eng.name, `回傳物件缺欄位：<span class="mono">${missing.join(", ")}</span>。若引擎近期改版，轉接層需對齊。`);
+      if(eng.expect === null){
+        setStatus(eng.key,"ok","起盤完成 · 已錄取（欄位契約待鎖定）");
       }else{
-        setStatus(eng.key,"ok","起盤完成 · 契約相符");
+        const missing = (eng.expect||[]).filter(f => !(f in rec.data));
+        if(missing.length){
+          setStatus(eng.key,"warn","欄位契約警示");
+          report("warn", eng.name, `回傳物件缺欄位：<span class="mono">${missing.join(", ")}</span>。若引擎近期改版，轉接層需對齊。`);
+        }else{
+          setStatus(eng.key,"ok","起盤完成 · 契約相符");
+        }
       }
       try{
         $("raw_"+eng.key).textContent =
