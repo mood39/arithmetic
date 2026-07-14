@@ -384,9 +384,23 @@ function zwSetHour(doc, h){
 }
 function getPath(o, p){ return p.split(".").reduce((a,k)=>(a==null?a:a[k]), o); }
 /* 引擎盤面文字節錄：找最深含關鍵字之元素 */
+/* 引擎盤面文字節錄：找最深「渲染中」含關鍵字之元素。
+   必用 innerText（僅含實際渲染文字）——textContent 會把 <script> 原始碼算進去，
+   而引擎程式碼內含渲染模板字串（如「此課問」「百分位」），曾致節錄抄到原始碼。 */
 function deepestWith(doc, needle){
-  const marks = [...doc.querySelectorAll("body *")].filter(e=>e.textContent.includes(needle));
-  return marks.length ? marks[marks.length-1] : null;
+  const BAD = {SCRIPT:1, STYLE:1, NOSCRIPT:1, TEMPLATE:1};
+  let best = null;
+  try{
+    if(!(doc.body.innerText || "").includes(needle)) return null;   /* 渲染文字中根本沒有，免掃 */
+    for(const e of doc.querySelectorAll("body *")){
+      if(BAD[e.tagName]) continue;
+      if(!e.getClientRects().length) continue;                      /* 不可見者不取 */
+      let t = "";
+      try{ t = e.innerText || ""; }catch(_){ continue; }
+      if(t.includes(needle)) best = e;                              /* 文件序中後者較深 */
+    }
+  }catch(_){}
+  return best;
 }
 function blockAfter(el){
   let n = el;
