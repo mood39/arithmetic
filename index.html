@@ -96,7 +96,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
     <div class="stepTitle"><span class="stepNum">1</span>事時</div>
     <div class="row">
       <label class="f">年
-        <input type="number" id="canonY" min="1900" max="2100" style="min-width:84px">
+        <select id="canonY" style="min-width:84px"></select>
       </label>
       <label class="f">月
         <select id="canonMo"></select>
@@ -110,6 +110,8 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
       <label class="f">分
         <select id="canonMM"></select>
       </label>
+    </div>
+    <div class="row">
       <button id="freezeNow">凍結此刻</button>
       <label class="f">經度
         <input type="number" id="canonLon" step="0.1" value="121.5" min="-180" max="180" style="min-width:84px">
@@ -121,7 +123,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
       <summary>命主 · 選填 · 點取開啟</summary>
       <div class="row" style="padding:6px 0 8px">
         <label class="f">生年（國曆）
-          <input type="number" id="canonBY" min="1900" max="2030" style="min-width:84px">
+          <select id="canonBY" style="min-width:84px"></select>
         </label>
         <label class="f">生月
           <select id="canonBM"><option value="">—</option></select>
@@ -232,6 +234,14 @@ function pad(n){ return String(n).padStart(2,"0"); }
   for(let i=1;i<=31;i++){ d.add(new Option(pad(i), pad(i))); bd.add(new Option(pad(i), String(i))); }
   for(let i=0;i<24;i++){ hh.add(new Option(pad(i), pad(i))); bh.add(new Option(pad(i)+" 時", String(i))); }
   for(let i=0;i<60;i++) mm.add(new Option(pad(i), pad(i)));
+  /* 年下拉 1~2200：供古事考證查古人之盤 */
+  const yE=$("canonY"), yB=$("canonBY");
+  for(let i=1;i<=2200;i++){
+    yE.add(new Option(String(i), String(i)));
+    yB.add(new Option(String(i), String(i)));
+  }
+  yE.value = String(new Date().getFullYear());   /* 僅作 UI 預設，不入計算；正典時間仍以凍結或使用者選定為準 */
+  yB.value = "1990";
 })();
 
 /* ── 問事 ── */
@@ -468,8 +478,13 @@ const ENGINES = [
         stance = cls==="jade" ? "吉" : cls==="verm" ? "凶" : "平";
       }
       try{
-        const mark = deepestWith(doc, "演算完成");
-        const blk = mark && blockAfter(mark);
+        let blk = null;
+        const m1 = deepestWith(doc, "演算完成");
+        if(m1) blk = blockAfter(m1);
+        if(!blk || !blk.innerText.trim()){
+          const m2 = deepestWith(doc, "斷語格式依");   /* 格式說明段必在斷語區塊之內，以之定位 */
+          if(m2) blk = blockAround(m2, 60);
+        }
         if(blk){
           const t = blk.innerText
             .replace(/斷語格式依《武經總要》[\s\S]*?之宮。?/g, "")
@@ -584,9 +599,10 @@ const ENGINES = [
       doc.getElementById("run").click();
     },
     expect:["tp","jiangPan","xun","tt","score","ctx","bifa","tst"],
-    /* 節錄：原盤底部吉凶平 ＋ 經文判斷整區塊 */
+    /* 節錄：吉凶平判詞 ＋ 百分位行 ＋ 吉凶象來源行（經文判斷、畢法賦說明全捨） */
     extract(rec, doc){
-      let stance = "未參", verdict = null, factors = [];
+      let stance = "未參", verdict = null;
+      const factors = [];
       try{
         const vEl = [...doc.querySelectorAll("body *")]
           .filter(e=>!e.children.length)
@@ -595,19 +611,17 @@ const ENGINES = [
           verdict = vEl.textContent.trim();
           stance = /吉/.test(verdict) ? "吉" : /凶/.test(verdict) ? "凶" : "平";
         }
-        const mark = deepestWith(doc, "經文判斷");
-        if(mark){
-          const blk = blockAround(mark, 40);
-          const lines = textLines(blk.innerText).filter(l=>l!=="經文判斷");
-          if(!verdict && lines.length){
-            verdict = lines[0];
-            const m = verdict.match(/大吉|中吉|小吉|大凶|小凶|吉|凶|平/);
-            if(m) stance = /吉/.test(m[0]) ? "吉" : /凶/.test(m[0]) ? "凶" : "平";
-            factors = lines.slice(1);
-          }else{
-            factors = lines;
-          }
-        }
+        const pick = needle => {
+          const el = deepestWith(doc, needle);
+          if(!el) return null;
+          const ls = textLines(blockAround(el, 20).innerText);
+          const hit = ls.filter(l=>l.includes(needle));
+          return hit.length ? hit.join(" ") : null;
+        };
+        const p1 = pick("百分位");
+        if(p1) factors.push(p1);
+        const p2 = pick("象主要來自");
+        if(p2 && p2 !== p1) factors.push(p2);
       }catch(e){}
       if(verdict) return {verdict, stance, factors};
       const d = rec.data;
@@ -660,29 +674,33 @@ const ENGINES = [
       if(skip) setTimeout(()=>{ try{skip.click();}catch(e){} }, 80);
     },
     expect:["judge","cast"],
-    /* 節錄：建議整區塊照抄；粗判溯 judge.grade */
+    /* 節錄：「此課問…」敘事區塊全文（象數/義理/應期）；退路依序為建議區塊、judge 欄位 */
     extract(rec, doc){
       const j = rec.data && rec.data.judge;
       const grade = (j && j.grade) || "";
       let stance = /吉/.test(grade) ? "吉" : /凶/.test(grade) ? "凶" : (grade ? "平" : "未參");
+      let factors = [];
       try{
-        const mark = [...doc.querySelectorAll("body *")]
-          .filter(e=>!e.children.length && /^建議$/.test(e.textContent.trim())).pop()
-          || deepestWith(doc, "建議");
-        if(mark){
-          let blk = blockAround(mark, 30);
-          const lines = textLines(blk.innerText).filter(l=>l!=="建議");
-          if(lines.length){
-            const verdict = grade ? grade + (j.score!=null?`（${j.score}）`:"") : lines[0];
-            const factors = grade ? lines : lines.slice(1);
-            return {verdict, stance, factors};
-          }
-        }
+        const mark = deepestWith(doc, "此課問");
+        if(mark) factors = textLines(blockAround(mark, 60).innerText);
       }catch(e){}
-      if(!j) return null;
-      const factors = [];
-      if(j.yongKin) factors.push("用神 " + j.yongKin);
-      return {verdict:(grade || "—") + (j.score!=null?`（${j.score}）`:""), stance, factors};
+      if(!factors.length){
+        try{
+          const mark = [...doc.querySelectorAll("body *")]
+            .filter(e=>!e.children.length && /^建議$/.test(e.textContent.trim())).pop()
+            || deepestWith(doc, "建議");
+          if(mark) factors = textLines(blockAround(mark, 30).innerText).filter(l=>l!=="建議");
+        }catch(e){}
+      }
+      if(!j && !factors.length) return null;
+      let verdict;
+      if(grade){
+        verdict = grade + (j.score != null ? `（${j.score}）` : "");
+      }else{
+        verdict = factors[0] || "—";
+        factors = factors.slice(1);
+      }
+      return {verdict, stance, factors};
     },
   },
   {
