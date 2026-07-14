@@ -64,6 +64,8 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .verdict{font-size:16.5px;font-weight:700;letter-spacing:.04em;line-height:1.55;margin-bottom:6px}
 .verdict.vJi{color:var(--ok)} .verdict.vXiong{color:var(--bad)} .verdict.vPing{color:var(--paper)} .verdict.vNone{color:var(--dim);font-weight:400}
 .factors{font-size:12.5px;color:var(--dim);line-height:1.8}
+.factors p{margin:0 0 6px}
+.factors.prose{color:var(--paper);font-size:13.5px;line-height:1.9}
 .card details.frameBox summary{cursor:pointer;padding:7px 16px;font-size:12px;color:var(--gold-dim);letter-spacing:.1em}
 .card details.frameBox[open] summary{border-bottom:1px solid var(--line)}
 .card iframe{width:100%;height:620px;border:0;display:block;background:#fff}
@@ -413,6 +415,16 @@ function blockAround(el, minLen){
     blk = blk.parentElement;
   return blk;
 }
+/* 取錨點所在之完整渲染行：行內元素常只含片段（如僅括號註記），須上爬至整行 */
+function lineAround(el){
+  let n = el;
+  const body = el.ownerDocument.body;
+  while(n.parentElement && n.parentElement !== body
+        && !(n.parentElement.innerText || "").includes("\n")){
+    n = n.parentElement;
+  }
+  return (n.innerText || "").trim();
+}
 function textLines(t, cap){
   return t.split(/\n+/).map(s=>s.trim()).filter(Boolean).slice(0, cap||24);
 }
@@ -627,10 +639,7 @@ const ENGINES = [
         }
         const pick = needle => {
           const el = deepestWith(doc, needle);
-          if(!el) return null;
-          const ls = textLines(blockAround(el, 20).innerText);
-          const hit = ls.filter(l=>l.includes(needle));
-          return hit.length ? hit.join(" ") : null;
+          return el ? lineAround(el) : null;
         };
         const p1 = pick("百分位");
         if(p1) factors.push(p1);
@@ -714,7 +723,7 @@ const ENGINES = [
         verdict = factors[0] || "—";
         factors = factors.slice(1);
       }
-      return {verdict, stance, factors};
+      return {verdict, stance, factors, prose:true};
     },
   },
   {
@@ -920,7 +929,16 @@ function paintSeal(key, vec, nativeTxt){
   }
   const cls = vec.stance==="吉" ? "vJi" : vec.stance==="凶" ? "vXiong" : vec.stance==="平" ? "vPing" : "vNone";
   if(vd){ vd.className = "verdict " + cls; vd.textContent = vec.verdict; }
-  if(fx) fx.innerHTML = vec.factors.map(f=>"· "+f).join("<br>");
+  if(fx){
+    const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    if(vec.prose){
+      fx.className = "factors prose";
+      fx.innerHTML = vec.factors.map(f=>`<p>${esc(f)}</p>`).join("");
+    }else{
+      fx.className = "factors";
+      fx.innerHTML = vec.factors.map(f=>"· "+esc(f)).join("<br>");
+    }
+  }
   STANCES[key] = vec.stance;
 }
 const ROLE_CN = {taiyi:"天", liuren:"人", qimen:"地", liuyao:"決"};
