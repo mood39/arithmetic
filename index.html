@@ -174,9 +174,9 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 
 const $ = id => document.getElementById(id);
 const REPORT = $("report");
-function report(cls, tag, msg){
+function report(cls, tag, msg, phase){
   const div = document.createElement("div");
-  div.className = "line " + cls;
+  div.className = "line " + cls + (phase ? " " + phase : "");
   div.innerHTML = `<b>${tag}</b>　${msg}`;
   REPORT.appendChild(div);
 }
@@ -197,16 +197,21 @@ const SUBJECTS = [
   {key:"通占",     kw:["通占","綜合","總論","雜占"]},
   {key:"財富",     kw:["求財","財運","投資","財"]},
   {key:"事業官祿", kw:["官祿","事業","仕途","職","官"]},
+  {key:"考試文書", kw:["考試","文書","功名","學業","求學"]},
   {key:"婚戀",     kw:["婚姻","婚戀","感情","姻緣","婚"]},
   {key:"健康",     kw:["疾病","健康","病"]},
   {key:"官訟",     kw:["詞訟","官訟","訴訟","官司"]},
   {key:"出行",     kw:["出行","搬遷","旅"]},
   {key:"行人尋人", kw:["行人","尋人","走失"]},
+  {key:"子女晚輩", kw:["子女","晚輩","子孫","兒女"]},
+  {key:"父母長輩", kw:["父母","長輩","尊長"]},
+  {key:"房產契約", kw:["房產","契約","田宅","置產","不動產"]},
+  {key:"兄弟朋友", kw:["兄弟","朋友","手足","同儕"]},
   {key:"談判合作", kw:["談判","合作","交易"]},
 ];
 SUBJECTS.forEach(s=>$("canonSubject").add(new Option(s.key, s.key)));
 
-const NATIVE = { liuren:[], liuyao:[], qimenRotate:null };
+const NATIVE = { liuren:[], liuyao:[], qimen:[], qimenRotate:null, qimenTabWarned:false };
 
 function resolveNative(list, subjKey){
   if(!list.length) return {text:null, fallback:false};
@@ -216,7 +221,7 @@ function resolveNative(list, subjKey){
     if(hit) return {text:hit, fallback:false};
   }
   const tz = list.find(t=>/通|綜/.test(t)) || list[0];
-  return {text:tz, fallback:true};
+  return {text:tz, fallback: subjKey !== "通占"};   /* 通占對應各家自身，不標退路 */
 }
 function renderSubjectMap(){
   const subj = $("canonSubject").value;
@@ -225,7 +230,8 @@ function renderSubjectMap(){
   parts.push(lr.text ? `六壬 → <b>${lr.text}</b>${lr.fallback?"（無對應，退此）":""}` : "六壬 →（選項未收割）");
   const ly = resolveNative(NATIVE.liuyao, subj);
   parts.push(ly.text ? `六爻 → <b>${ly.text}</b>${ly.fallback?"（無對應，退此）":""}` : "六爻 →（選項未收割）");
-  parts.push("奇門：盤不因問事而異（問事屬詮釋分頁）");
+  const qm = resolveNative(NATIVE.qimen, subj);
+  parts.push(qm.text ? `奇門 → <b>${qm.text}</b>${qm.fallback?"（無對應，退此）":""}` : "奇門 → 詮釋分頁自動切換（首盤後鎖定清單）");
   $("subjectMap").innerHTML = parts.join("　｜　");
 }
 $("canonSubject").addEventListener("change", renderSubjectMap);
@@ -293,6 +299,41 @@ function zwSetHour(doc, h){
   return false;
 }
 function getPath(o, p){ return p.split(".").reduce((a,k)=>(a==null?a:a[k]), o); }
+/* 奇門詮釋分頁：以文字尋標點擊；找到後收割同層兄弟為分頁全集 */
+function qimenTabSwitch(doc, kws){
+  const els = [...doc.querySelectorAll("button,[role=tab],a,li,span,div")]
+    .filter(e=>{
+      if(e.children.length) return false;
+      const t = e.textContent.trim();
+      return t.length >= 2 && t.length <= 8;
+    });
+  for(const kw of kws){
+    const hit = els.find(e => e.textContent.trim().includes(kw));
+    if(hit){
+      if(hit.parentElement){
+        const sibs = [...hit.parentElement.children]
+          .map(c=>c.textContent.trim()).filter(t=>t && t.length<=8);
+        if(sibs.length >= 2) NATIVE.qimen = sibs;
+      }
+      try{ hit.click(); }catch(e){}
+      return hit.textContent.trim();
+    }
+  }
+  return null;
+}
+/* 太乙硬規則：時計僅金鏡（引擎內部無此過濾，聚合器代守） */
+function applyTaiyiRule(){
+  const sysOpt = $("optTaiyiSystem").selectedOptions[0];
+  const sysTxt = sysOpt ? sysOpt.text : "";
+  const sch = $("optTaiyiSchool");
+  if(/時/.test(sysTxt)){
+    [...sch.options].forEach(o=>{ o.disabled = !/金鏡/.test(o.text); });
+    const jj = [...sch.options].find(o=>/金鏡/.test(o.text));
+    if(jj) sch.value = jj.value;
+  }else{
+    [...sch.options].forEach(o=>{ o.disabled = false; });
+  }
+}
 
 /* ── 引擎登錄表 ── */
 const ENGINES = [
@@ -315,6 +356,7 @@ const ENGINES = [
     harvest(doc, win){
       cloneOptions(doc, "inSystem", $("optTaiyiSystem"));
       cloneOptions(doc, "inSchool", $("optTaiyiSchool"));
+      applyTaiyiRule();
     },
     drive(win, doc, canon){
       setSelect(doc, "inSystem", canon.taiyiSystem);
@@ -328,7 +370,18 @@ const ENGINES = [
       doc.getElementById("tsLon").value = canon.lon;
       doc.getElementById("calcBtn").click();
     },
-    expect:["compute.jiNian","compute.ju","compute.taiyiP16","compute.zhu"],
+    verify(rec){
+      const c = rec.data && rec.data.compute;
+      if(c){
+        const miss = ["jiNian","ju","taiyiP16","zhu"].filter(f=>!(f in c));
+        return miss.length
+          ? {cls:"warn", st:"欄位契約警示", msg:`compute 缺欄位：<span class="mono">${miss.join(", ")}</span>`}
+          : {cls:"ok", st:"起盤完成 · 契約相符"};
+      }
+      if(rec.data && rec.data.computeHour)
+        return {cls:"ok", st:"起盤完成 · 已錄取（時計契約待鎖定）"};
+      return {cls:"warn", st:"欄位契約警示", msg:"compute 與 computeHour 皆未見於錄取物件"};
+    },
   },
   {
     key:"ziwei",  name:"紫微斗數", seal:"命", role:"先天結構 · 大限流年",
@@ -344,15 +397,29 @@ const ENGINES = [
       const a = (root && root.astro && typeof root.astro.bySolar === "function") ? root.astro
               : (root && typeof root.bySolar === "function") ? root : null;
       if(!a) throw new Error("iztro 計算入口未尋獲；iztro 頂層鍵：" + (root ? Object.keys(root).join(", ") : "（iztro 不存在）"));
-      ["bySolar","byLunar"].forEach(fn=>{
-        if(typeof a[fn] !== "function") return;
+      const wrapFns = tgt => ["bySolar","byLunar"].forEach(fn=>{
+        if(typeof tgt[fn] !== "function") return;
         const orig = a[fn].bind(a);
-        a[fn] = function(...args){
+        tgt[fn] = function(...args){
           const r = orig(...args);
           rec.data = r; rec.at = Date.now();
           return r;
         };
       });
+      try{
+        wrapFns(a);                        /* 一般物件：原地包裹 */
+      }catch(e){
+        /* ES 模組命名空間凍結：於 window 綁定層重建可寫替身 */
+        const cloneNS = ns => { const o = {}; for(const k in ns) o[k] = ns[k]; return o; };
+        const rootClone = cloneNS(root);
+        if(root.astro && a === root.astro){
+          rootClone.astro = cloneNS(root.astro);
+          wrapFns(rootClone.astro);
+        }else{
+          wrapFns(rootClone);
+        }
+        win.iztro = rootClone;             /* 引擎經全域呼叫即被替身錄取 */
+      }
     },
     drive(win, doc, canon){
       const back = doc.getElementById("backBtn");
@@ -360,14 +427,14 @@ const ENGINES = [
       const nm = doc.getElementById("nameInput");
       if(nm && !nm.value) nm.value = "命主";
       if(!setSelectAny(doc, "calType", ["國曆","陽曆","公曆","西曆","solar"]))
-        report("warn","紫微斗數","曆別選項無國曆對應——請告知該選單選項文字。");
+        report("warn","紫微斗數","曆別選項無國曆對應——請告知該選單選項文字。","castphase");
       doc.getElementById("yearInput").value  = canon.birth.y;
       doc.getElementById("monthInput").value = canon.birth.m;
       doc.getElementById("dayInput").value   = canon.birth.d;
       if(!zwSetHour(doc, canon.birth.hh))
-        report("warn","紫微斗數","時辰選項比對失敗——請貼 hourInput 選項文字。");
+        report("warn","紫微斗數","時辰選項比對失敗——請貼 hourInput 選項文字。","castphase");
       if(!setGender(doc, canon.gender))
-        report("warn","紫微斗數","性別控件未尋獲——請貼該欄位 HTML 片段。");
+        report("warn","紫微斗數","性別控件未尋獲——請貼該欄位 HTML 片段。","castphase");
       doc.getElementById("submitBtn").click();
     },
     expect:["palaces"],
@@ -427,13 +494,23 @@ const ENGINES = [
       try{
         if(typeof win.activateAutoMode === "function") win.activateAutoMode(m);
         else win.currentAutoMethod = m;
-      }catch(e){ report("warn","奇門遁甲","盤式切換失敗："+e.message); }
+      }catch(e){ report("warn","奇門遁甲","盤式切換失敗："+e.message,"castphase"); }
       doc.getElementById("autoDateTime").value = canon.dtLocal;
       doc.getElementById("tstOn").checked = canon.tst;
       doc.getElementById("tstLon").value = canon.lon;
       const lz = doc.getElementById("lateZiToday");
       if(lz) lz.checked = !canon.lateZi;   /* 該引擎語意：勾選=夜子保留當日日柱 */
       doc.getElementById("applyAuto").click();
+      /* 詮釋分頁隨標的切換（盤本身不因問事而異） */
+      const subj = SUBJECTS.find(s=>s.key===canon.subject) || SUBJECTS[0];
+      setTimeout(()=>{
+        const hitTxt = qimenTabSwitch(doc, [...subj.kw, subj.key]);
+        renderSubjectMap();
+        if(!hitTxt && canon.subject !== "通占" && !NATIVE.qimenTabWarned){
+          NATIVE.qimenTabWarned = true;
+          report("warn","奇門遁甲",`詮釋分頁未尋得「${canon.subject}」對應——請貼分頁區 HTML 片段，下輪精準接點。`,"castphase");
+        }
+      }, 350);
     },
     expect:["newPalaces","centerInfo","juText","ganzhiText","termText"],
   },
@@ -531,7 +608,7 @@ ENGINES.forEach(eng=>{
   });
 });
 
-/* 太乙：系統一變，鏡進引擎、由引擎自濾派法，再重收割 */
+/* 太乙：系統一變，鏡進引擎並重收割派法，再套本頁硬規則（時計僅金鏡） */
 $("optTaiyiSystem").addEventListener("change", ()=>{
   try{
     const fr = FRAMES.taiyi, doc = fr.contentDocument, win = fr.contentWindow;
@@ -539,6 +616,7 @@ $("optTaiyiSystem").addEventListener("change", ()=>{
     doc.getElementById("inSystem").dispatchEvent(new win.Event("change"));
     cloneOptions(doc, "inSchool", $("optTaiyiSchool"));
   }catch(e){}
+  applyTaiyiRule();
 });
 
 /* ── 正典輸入 ── */
@@ -580,6 +658,7 @@ $("castAll").onclick = ()=>{
   const canon = gatherCanon();
   if(!canon) return;
   $("castNote").textContent = "";
+  REPORT.querySelectorAll(".castphase").forEach(el=>el.remove());
   ENGINES.forEach(eng=>{
     if(!eng.wired) return;
     if(eng.canRun){
@@ -594,23 +673,27 @@ $("castAll").onclick = ()=>{
     try{ eng.drive(win, doc, canon); }
     catch(e){
       setStatus(eng.key,"bad","駕駛失敗");
-      report("bad", eng.name, "表單駕駛失敗："+e.message+"——引擎表單元素可能已變更。");
+      report("bad", eng.name, "表單駕駛失敗："+e.message+"——引擎表單元素可能已變更。","castphase");
       return;
     }
     setTimeout(()=>{
       const rec = RECS[eng.key];
       if(!rec.data){
         setStatus(eng.key,"warn","未錄得結果");
-        report("warn", eng.name, "按鈕已按下但未錄得計算結果——計算入口可能未被觸發或已改名。");
+        report("warn", eng.name, "按鈕已按下但未錄得計算結果——計算入口可能未被觸發或已改名。","castphase");
         return;
       }
-      if(eng.expect === null){
+      if(eng.verify){
+        const v = eng.verify(rec);
+        setStatus(eng.key, v.cls, v.st);
+        if(v.msg) report(v.cls, eng.name, v.msg, "castphase");
+      }else if(eng.expect === null){
         setStatus(eng.key,"ok","起盤完成 · 已錄取（欄位契約待鎖定）");
       }else{
         const missing = (eng.expect||[]).filter(f => getPath(rec.data, f) === undefined);
         if(missing.length){
           setStatus(eng.key,"warn","欄位契約警示");
-          report("warn", eng.name, `回傳物件缺欄位：<span class="mono">${missing.join(", ")}</span>。若引擎近期改版，轉接層需對齊。`);
+          report("warn", eng.name, `回傳物件缺欄位：<span class="mono">${missing.join(", ")}</span>。若引擎近期改版，轉接層需對齊。`,"castphase");
         }else{
           setStatus(eng.key,"ok","起盤完成 · 契約相符");
         }
