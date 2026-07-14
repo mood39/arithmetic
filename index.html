@@ -14,6 +14,7 @@
 html{background:var(--ink)}
 body{font-family:"Noto Serif TC","Songti TC","PMingLiU",serif;color:var(--paper);min-height:100vh;padding:22px clamp(12px,3vw,40px) 60px;line-height:1.65}
 .mono{font-family:"SF Mono","Consolas","Menlo",monospace}
+.zone{max-width:1180px;margin:0 auto}
 
 header{max-width:1180px;margin:0 auto 20px;border-bottom:1px solid var(--line);padding-bottom:16px}
 header h1{font-size:clamp(22px,3.2vw,30px);font-weight:700;letter-spacing:.35em;color:var(--gold)}
@@ -31,6 +32,8 @@ header p.thesis{margin-top:8px;color:var(--dim);font-size:14px}
 button{background:var(--panel);border:1px solid var(--gold-dim);color:var(--gold);border-radius:4px;padding:7px 16px;font-size:14px;font-family:inherit;cursor:pointer;letter-spacing:.15em}
 button:hover{background:var(--gold);color:var(--ink)}
 button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+button.minor{border-color:var(--line);color:var(--dim);letter-spacing:.05em;font-size:12px;padding:5px 10px}
+button.minor:hover{color:var(--ink);background:var(--gold-dim)}
 #castAll{font-size:16px;padding:9px 34px}
 .groupTag{font-size:11px;letter-spacing:.25em;color:var(--gold-dim);border-left:2px solid var(--gold-dim);padding-left:8px;margin:6px 0 2px;width:100%}
 #subjectMap{font-size:12px;color:var(--dim);padding-bottom:8px}
@@ -46,29 +49,61 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 #report .bad{border-color:var(--bad)}
 #report .line b{letter-spacing:.15em}
 
-#engines{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:26px}
+/* ── 印列（天地人）── */
+#seals{max-width:1180px;margin:0 auto 22px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+@media (max-width:860px){#seals{grid-template-columns:1fr}}
+.sealCard{background:var(--ink2);border:1px solid var(--line);border-radius:6px;padding:13px 15px;display:flex;flex-direction:column;gap:7px;min-height:170px}
+.sealCard .top{display:flex;align-items:center;gap:10px}
+.sealTag{width:32px;height:32px;border-radius:50%;flex:none;border:1.5px solid var(--seal);color:var(--seal);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700}
+.sealCard h3{font-size:15px;letter-spacing:.15em;font-weight:700}
+.sealCard .native{font-size:11px;color:var(--gold-dim);margin-left:auto;text-align:right}
+.verdict{font-size:16.5px;font-weight:700;letter-spacing:.04em;line-height:1.5}
+.verdict.vJi{color:var(--ok)} .verdict.vXiong{color:var(--bad)} .verdict.vPing{color:var(--paper)} .verdict.vNone{color:var(--dim);font-weight:400}
+.factors{font-size:12px;color:var(--dim);line-height:1.75}
+.sealCard .foot{margin-top:auto;display:flex;align-items:center;gap:10px}
+.stLine{font-size:11px;letter-spacing:.03em}
+.stLine.ok{color:var(--ok)}.stLine.warn{color:var(--warn)}.stLine.bad{color:var(--bad)}.stLine.idle{color:var(--dim)}
+
+/* ── 命盤舞台 ── */
+#stage{max-width:1180px;margin:0 auto 22px;border:1px solid var(--line);border-radius:6px;background:var(--ink2);overflow:hidden}
+#stage .head{display:flex;align-items:center;gap:14px;padding:10px 16px;border-bottom:1px solid var(--line)}
+#stage .head h3{font-size:17px;letter-spacing:.2em;font-weight:700}
+#stage .head .role{font-size:12px;color:var(--dim)}
+#stage iframe{width:100%;height:940px;border:0;display:block;background:#fff}
+@media (max-width:720px){#stage iframe{height:700px}}
+
+/* ── 決卡 ── */
+#decide{max-width:1180px;margin:0 auto 22px}
+#decide .sealCard{min-height:0}
+
+/* ── 張力 ── */
+#tension{max-width:1180px;margin:0 auto 30px;border-left:3px solid var(--gold-dim);background:var(--ink2);padding:12px 18px;display:none}
+#tension h4{font-size:13px;letter-spacing:.3em;color:var(--gold-dim);margin-bottom:8px}
+#tension .tl{font-size:14px;margin-bottom:6px}
+#tension .note{font-size:12px;color:var(--dim);margin-top:8px}
+
+/* ── 溯源區 ── */
+#tracezone{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+#tracezone .zoneHead{font-size:13px;letter-spacing:.3em;color:var(--gold-dim);border-bottom:1px solid var(--line);padding-bottom:8px;display:flex;align-items:center}
+#tracezone .zoneHead a{margin-left:auto;color:var(--dim);font-size:12px;letter-spacing:.05em;text-decoration:none;cursor:pointer}
+#tracezone .zoneHead a:hover{color:var(--gold)}
 .card{border:1px solid var(--line);border-radius:6px;background:var(--ink2);overflow:hidden}
-.card .head{display:flex;align-items:center;gap:14px;padding:10px 16px;border-bottom:1px solid var(--line)}
-.sealTag{width:34px;height:34px;border-radius:50%;flex:none;border:1.5px solid var(--seal);color:var(--seal);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700}
-.card .head h3{font-size:17px;letter-spacing:.2em;font-weight:700}
-.card .head .role{font-size:12px;color:var(--dim)}
-.card .head .status{margin-left:auto;font-size:12px;letter-spacing:.05em}
-.status.ok{color:var(--ok)}.status.warn{color:var(--warn)}.status.bad{color:var(--bad)}.status.idle{color:var(--dim)}
+.card .head{display:flex;align-items:center;gap:14px;padding:9px 16px;border-bottom:1px solid var(--line)}
+.card .head h3{font-size:15px;letter-spacing:.2em;font-weight:700}
 .card details{border-bottom:1px solid var(--line)}
+.card details:last-child{border-bottom:0}
 .card details summary{cursor:pointer;padding:6px 16px;font-size:12px;color:var(--dim);letter-spacing:.1em}
 .card details pre{max-height:300px;overflow:auto;padding:10px 16px;font-size:11px;color:var(--paper);background:var(--ink)}
 .card iframe{width:100%;height:860px;border:0;display:block;background:#fff}
 .frameBox summary{color:var(--gold-dim) !important}
 .frameBox[open] summary{border-bottom:1px solid var(--line)}
+@media (max-width:720px){.card iframe{height:640px}}
 
 #method{max-width:1180px;margin:34px auto 0;border-top:1px solid var(--line);padding-top:10px}
 #method summary{cursor:pointer;color:var(--gold-dim);letter-spacing:.2em;font-size:14px;padding:8px 0}
 #method .body{color:var(--dim);font-size:13.5px;max-width:74em;padding:6px 0 0}
 #method .body p{margin-bottom:10px}
 #method .body b{color:var(--paper);font-weight:400}
-
-@media (prefers-reduced-motion:no-preference){.card{transition:border-color .25s}.card:hover{border-color:var(--gold-dim)}}
-@media (max-width:720px){.card iframe{height:640px}}
 </style>
 </head>
 <body>
@@ -78,7 +113,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   <p class="thesis">五盤不重算，判斷以干支五行為共通語言，分歧保留、不強行合一。</p>
 </header>
 
-<!-- ════════ 起式：正典輸入 ════════ -->
+<!-- ════════ 起式 ════════ -->
 <section id="canon">
   <h2>起式</h2>
 
@@ -151,16 +186,44 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 
 <div id="report"></div>
 
-<div id="engines"></div>
+<!-- ════════ 印列：天 · 人 · 地 ════════ -->
+<div id="seals"></div>
+
+<!-- ════════ 命盤舞台（紫微唯一居所）════════ -->
+<section id="stage">
+  <div class="head">
+    <div class="sealTag">命</div>
+    <h3>紫微斗數</h3>
+    <span class="role">先天結構 · 大限流年（流年隨事時自動開啟）· 四判環侍，斷在人</span>
+    <span class="stLine idle" id="st_ziwei" style="margin-left:auto">載入中…</span>
+  </div>
+  <iframe id="fr_ziwei" src="/ziwei/" title="紫微斗數"></iframe>
+</section>
+
+<!-- ════════ 決 ════════ -->
+<div id="decide"></div>
+
+<!-- ════════ 張力 · 合參 ════════ -->
+<section id="tension">
+  <h4>張力 · 合參</h4>
+  <div id="tensionLines"></div>
+  <div class="note">命盤不入自動比對——四判合參中宮，斷在人。粗判僅用於偵測分歧；各家判詞以原生術語為準。</div>
+</section>
+
+<!-- ════════ 溯源：四盤原檔 ════════ -->
+<div id="tracezone">
+  <div class="zoneHead">溯源 · 盤面原檔（展開細看，展合不重算）<a id="backTop">▲ 回印列</a></div>
+</div>
 
 <details id="method">
   <summary>本頁如何運作 · 設計說明</summary>
   <div class="body">
     <p><b>同源。</b>本頁以 iframe 嵌入五個引擎的原始檔案，未修改任何一行計算邏輯。起盤時，本頁將同一份輸入填入各引擎自己的表單、按下各引擎自己的按鈕；盤面由引擎本人繪製。所謂「聚合與獨立完全相同」，不是被驗證出來的，而是結構上沒有第二份計算可以不同。</p>
-    <p><b>同刻。</b>五盤共用一個凍結的時刻。任何一家不得自行讀取當下時間，否則時辰交界處五盤將各踩一邊。真太陽時開關與經度亦屬此一正典輸入，五家統一。</p>
-    <p><b>同問。</b>問事只有一個標的，由本頁映射到各家原生選項，落點即時顯示於標的之旁；查無對應者退「通占」並明示。奇門之問事屬結果詮釋，不入起盤計算。</p>
-    <p><b>分工。</b>三式應三才：太乙主天（大勢天時）、六壬主人（人事對應）、奇門主地（方位行動）；紫微主命（先天結構與大限流年）；易經六爻居決，收攏諸家為一句可行的取捨。此分工承古法，非本頁新創。</p>
-    <p><b>推與占。</b>太乙、紫微、六壬、奇門四家皆由時間確定性起盤（推）。六爻獨守占法：卦由密碼學亂數搖出，本頁只搖一次，畫面與後續參照共用該一搖；換題方可另起。此為刻意保留，非技術限制。</p>
+    <p><b>同刻。</b>五盤共用一個凍結的時刻。任何一家不得自行讀取當下時間。真太陽時開關與經度亦屬正典輸入，五家統一。</p>
+    <p><b>同問。</b>問事只有一個標的，由本頁映射到各家原生選項並即時顯示落點；查無對應者明示退路。奇門之問事屬結果詮釋分頁；六爻於特定標的下開細目自選。</p>
+    <p><b>分工。</b>三式應三才：太乙主天、六壬主人、奇門主地；紫微主命——命不出一句判詞，命盤本身即是舞台，四家判詞環侍供合參；易經六爻居決，收攏諸家為一句取捨。</p>
+    <p><b>印卡紀律。</b>印卡上的每一個字，皆節錄自引擎本人的錄取物件或其親手渲染之盤面，本頁不另行詮釋。粗判（吉凶平）僅供張力偵測，畫面一律顯示各家原生術語。</p>
+    <p><b>推與占。</b>太乙、紫微、六壬、奇門皆由時間確定性起盤（推）。六爻獨守占法：卦由密碼學亂數搖出，本頁只搖一次，畫面與後續參照共用該一搖；換題方可另起。</p>
     <p><b>張力。</b>諸家結論若相左，本頁不以加權折衷之，亦不化約為單一分數。分歧本身即是訊息。</p>
   </div>
 </details>
@@ -168,11 +231,12 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 <script>
 "use strict";
 /* ═══════════════════════════════════════════════════════
-   三才聚頂 五術朝元 · 聚合器
+   三才聚頂 五術朝元 · 聚合器（四印拱一盤）
    1. 單一計算源：永不在本頁重算任何引擎的盤。
    2. 錄取式補丁：包裹各引擎計算入口，引擎自己算、我們錄同一份結果。
-   3. 契約檢查：載入探測全域；起盤驗欄位（支援點路徑）；缺漏大聲報警。
-   4. 選項收割：排法選單自引擎 DOM 讀出；問事採單一標的映射外顯。
+   3. 契約檢查：載入探測全域；起盤驗欄位；缺漏大聲報警。
+   4. 印卡紀律：卡上每字皆溯自錄取物件或引擎親手渲染之 DOM。
+   5. 紫微 iframe 唯一居所為中央舞台——建頁即定位，永不搬移（搬移即重載）。
    ═══════════════════════════════════════════════════════ */
 
 const $ = id => document.getElementById(id);
@@ -185,7 +249,7 @@ function report(cls, tag, msg, phase){
 }
 function pad(n){ return String(n).padStart(2,"0"); }
 
-/* ── 時分下拉初始化 ── */
+/* ── 時分下拉 ── */
 (function(){
   const hh=$("canonHH"), mm=$("canonMM"), bh=$("canonBHH");
   for(let i=0;i<24;i++){
@@ -195,9 +259,9 @@ function pad(n){ return String(n).padStart(2,"0"); }
   for(let i=0;i<60;i++) mm.add(new Option(pad(i), pad(i)));
 })();
 
-/* ── 問事：正典標的與關鍵詞映射 ── */
+/* ── 問事 ── */
 const SUBJECTS = [
-  {key:"通占",     kw:["通占","綜合","總論","雜占"]},
+  {key:"通占",     kw:["通占","自身","綜合","總論","雜占"]},
   {key:"財富",     kw:["求財","財運","投資","財"]},
   {key:"事業官祿", kw:["官祿","事業","仕途","職","官"]},
   {key:"婚戀",     kw:["婚姻","婚戀","感情","姻緣","婚"]},
@@ -206,7 +270,6 @@ const SUBJECTS = [
   {key:"出行",     kw:["出行","搬遷","旅","行人","尋人"]},
   {key:"談判合作", kw:["談判","合作","交易"]},
 ];
-/* 六爻細目：於特定標的下開次選單自選 */
 const LIUYAO_SUB = {
   "事業官祿":[
     {key:"事業官祿", kw:["官祿","事業","仕途","職","官"]},
@@ -220,7 +283,6 @@ const LIUYAO_SUB = {
     {key:"兄弟朋友", kw:["兄弟","朋友","手足","同儕"]},
   ],
 };
-/* 奇門詮釋分頁：標的→引擎分頁 label（使用者指定之對應表） */
 const QIMEN_MAP = {
   "通占":"財運投資", "財富":"財運投資", "事業官祿":"考試求職", "談判合作":"談判合作",
   "婚戀":"婚姻感情", "健康":"疾病健康", "官訟":"訴訟官司", "出行":"出行搬遷",
@@ -241,10 +303,9 @@ function resolveNative(list, subjKey){
   const subj = SUBJECTS.find(s=>s.key===subjKey) || SUBJECTS[0];
   const hit = resolveByKw(list, subj.kw);
   if(hit) return {text:hit, fallback:false};
-  const tz = list.find(t=>/通|綜/.test(t)) || list[0];
-  return {text:tz, fallback: subjKey !== "通占"};   /* 通占對應各家自身，不標退路 */
+  const tz = list.find(t=>/通|綜|自身/.test(t)) || list[0];
+  return {text:tz, fallback:true};   /* 任何退路一律明示 */
 }
-/* 六爻次選單：依標的重建可選細目（選項取自六爻引擎本身） */
 function rebuildLySub(){
   const subj = $("canonSubject").value;
   const cfg = LIUYAO_SUB[subj];
@@ -309,7 +370,6 @@ function setSelectAny(doc, id, cands){
   }
   return false;
 }
-/* 性別控件通用尋找：id → radio → 含男/女選項之 select */
 function setGender(doc, g){
   if(!g) return false;
   const byId = doc.querySelector('#gender,#genderInput,select[id*="ender"],select[name*="ender"]');
@@ -323,7 +383,6 @@ function setGender(doc, g){
   if(sel){ setSelectEl(sel, g); return true; }
   return false;
 }
-/* 紫微時辰：由小時換算地支，含早晚子時 */
 function zwSetHour(doc, h){
   const s = doc.getElementById("hourInput");
   if(!s) return false;
@@ -352,12 +411,13 @@ function applyTaiyiRule(){
     [...sch.options].forEach(o=>{ o.disabled = false; });
   }
 }
+const GRADE_RANK = {"優":3,"可":2,"弱":1,"差":0};
 
 /* ── 引擎登錄表 ── */
 const ENGINES = [
   {
     key:"taiyi",  name:"太乙神數", seal:"天", role:"大勢 · 天時 · 值運",
-    path:"/Taiyishenshu/", wired:true,
+    path:"/Taiyishenshu/", wired:true, hasTrace:true,
     probeGlobals:["compute","computeHour"],
     patch(win, rec){
       ["compute","computeHour"].forEach(fn=>{
@@ -405,10 +465,25 @@ const ENGINES = [
       }
       return {cls:"warn", st:"欄位契約警示", msg:"compute 與 computeHour 皆未見於錄取物件"};
     },
+    /* 印卡節錄：全數溯自 compute/computeHour 錄取物件 */
+    extract(rec, doc){
+      const b = (rec.data && (rec.data.compute || rec.data.computeHour)) || null;
+      if(!b) return null;
+      const zj = (b.zhu && b.zhu.judge) || {};
+      const stance = zj.cls==="jade" ? "吉" : zj.cls==="verm" ? "凶" : "平";
+      const verdict = (zj.t || "—") + (zj.d ? "　" + zj.d : "");
+      const factors = [];
+      if(b.ju != null) factors.push("局 " + b.ju);
+      if(b.taiyiGua)   factors.push("太乙臨" + b.taiyiGua);
+      if(b.liName)     factors.push(b.liName);
+      if(b.zhu && b.zhu.total != null) factors.push("主算 " + b.zhu.total);
+      if(b.ke  && b.ke.total  != null) factors.push("客算 " + b.ke.total);
+      return {verdict, stance, factors};
+    },
   },
   {
     key:"ziwei",  name:"紫微斗數", seal:"命", role:"先天結構 · 大限流年",
-    path:"/ziwei/", wired:true,
+    path:"/ziwei/", wired:true, hasTrace:false,   /* 舞台常駐，溯源區僅留 JSON */
     probeGlobals:["iztro"],
     canRun(c){
       const b = c.birth;
@@ -430,9 +505,8 @@ const ENGINES = [
         };
       });
       try{
-        wrapFns(a);                        /* 一般物件：原地包裹 */
+        wrapFns(a);
       }catch(e){
-        /* ES 模組命名空間凍結：於 window 綁定層重建可寫替身 */
         const cloneNS = ns => { const o = {}; for(const k in ns) o[k] = ns[k]; return o; };
         const rootClone = cloneNS(root);
         if(root.astro && a === root.astro){
@@ -441,8 +515,12 @@ const ENGINES = [
         }else{
           wrapFns(rootClone);
         }
-        win.iztro = rootClone;             /* 引擎經全域呼叫即被替身錄取 */
+        win.iztro = rootClone;
       }
+    },
+    harvest(doc, win){
+      cloneOptions(doc, "calType", $("canonCalType") || document.createElement("select"));
+      cloneOptions(doc, "hourInput", $("canonBHH_native") || document.createElement("select"));
     },
     drive(win, doc, canon){
       const back = doc.getElementById("backBtn");
@@ -472,7 +550,7 @@ const ENGINES = [
   },
   {
     key:"liuren", name:"大六壬",   seal:"人", role:"人事 · 事應 · 年命",
-    path:"/daliuren/", wired:true,
+    path:"/daliuren/", wired:true, hasTrace:true,
     probeGlobals:["computeCourse"],
     patch(win, rec){
       const orig = win.computeCourse;
@@ -503,10 +581,34 @@ const ENGINES = [
       doc.getElementById("run").click();
     },
     expect:["tp","jiangPan","xun","tt","score","ctx","bifa","tst"],
+    /* 印卡節錄：溯自 computeCourse 錄取物件；score 形狀防禦式讀取 */
+    extract(rec, doc){
+      const d = rec.data;
+      if(!d) return null;
+      let verdict = "—", stance = "未參";
+      const factors = [];
+      const s = d.score;
+      if(s != null){
+        if(typeof s === "object"){
+          const t = (s.judge && (s.judge.t || s.judge.label)) || s.label || s.t;
+          if(t){ verdict = t; stance = /吉/.test(t) ? "吉" : /凶/.test(t) ? "凶" : "平"; }
+          if(s.total != null) factors.push("課分 " + s.total);
+          if(verdict === "—" && s.total != null) verdict = "課分 " + s.total;
+        }else{
+          verdict = "課分 " + s;   /* 尺度未告知，暫不入粗判 */
+        }
+      }
+      if(Array.isArray(d.bifa) && d.bifa.length){
+        const names = d.bifa.slice(0,2).map(x=>typeof x==="string" ? x : (x.name||x.label||"")).filter(Boolean);
+        if(names.length) factors.push("課體 " + names.join("、"));
+      }
+      if(d.nearBoundary) factors.push("近時辰交界");
+      return {verdict, stance, factors};
+    },
   },
   {
     key:"qimen",  name:"奇門遁甲", seal:"地", role:"方位 · 擇時 · 行動",
-    path:"/qimen/", wired:true,
+    path:"/qimen/", wired:true, hasTrace:true,
     probeGlobals:["computeAutoChart"],
     patch(win, rec){
       const orig = win.computeAutoChart;
@@ -530,9 +632,8 @@ const ENGINES = [
       doc.getElementById("tstOn").checked = canon.tst;
       doc.getElementById("tstLon").value = canon.lon;
       const lz = doc.getElementById("lateZiToday");
-      if(lz) lz.checked = !canon.lateZi;   /* 該引擎語意：勾選=夜子保留當日日柱 */
+      if(lz) lz.checked = !canon.lateZi;
       doc.getElementById("applyAuto").click();
-      /* 詮釋分頁隨標的切換：依指定對應表精準點擊 .tabs .tab（引擎 onclick 自改 currentCat） */
       const tabLabel = QIMEN_MAP[canon.subject] || QIMEN_MAP["通占"];
       setTimeout(()=>{
         const tab = [...doc.querySelectorAll(".tabs .tab")]
@@ -545,10 +646,36 @@ const ENGINES = [
       }, 350);
     },
     expect:["newPalaces","centerInfo","juText","ganzhiText","termText"],
+    /* 印卡節錄：讀引擎親手渲染之九宮格（分頁切換後），非本頁重算 */
+    extract(rec, doc){
+      const cells = [...doc.querySelectorAll("#grid9 .cell")].filter(c=>!c.classList.contains("center-cell"));
+      if(!cells.length) return null;
+      const read = c => ({
+        dir:   (c.querySelector(".dir")   || {}).textContent || "",
+        badge: ((c.querySelector(".badge")|| {}).textContent || "").trim(),
+        door:  (c.querySelector(".door")  || {}).textContent || "",
+        star:  (c.querySelector(".star")  || {}).textContent || "",
+        god:   (c.querySelector(".god")   || {}).textContent || "",
+        voided: c.classList.contains("void"),
+      });
+      const rows = cells.map(read).filter(r=>r.badge);
+      if(!rows.length) return null;
+      rows.sort((a,b)=>(GRADE_RANK[b.badge]??-1)-(GRADE_RANK[a.badge]??-1));
+      const best = rows[0];
+      const stance = best.badge==="優" ? "吉" : best.badge==="可" ? "平" : "凶";
+      const verdict = `最吉方 ${best.dir.trim()}（${best.badge}）`;
+      const factors = [];
+      const detail = [best.door, best.star, best.god].map(t=>t.trim()).filter(Boolean).join(" · ");
+      if(detail) factors.push(detail);
+      if(best.voided) factors.push("該方位落時孤，降級參之");
+      const worst = rows[rows.length-1];
+      if(worst && worst.dir !== best.dir) factors.push(`最忌方 ${worst.dir.trim()}（${worst.badge}）`);
+      return {verdict, stance, factors};
+    },
   },
   {
     key:"liuyao", name:"納甲六爻", seal:"決", role:"占斷 · 取捨（此家守占，卦僅一搖）",
-    path:"/liuyao/", wired:true,
+    path:"/liuyao/", wired:true, hasTrace:true,
     probeGlobals:["LiuYao"],
     patch(win, rec){
       const ns = win.LiuYao;
@@ -582,33 +709,109 @@ const ENGINES = [
       if(skip) setTimeout(()=>{ try{skip.click();}catch(e){} }, 80);
     },
     expect:["judge","cast"],
+    /* 印卡節錄：溯自 judge 錄取物件（與畫面同一搖） */
+    extract(rec, doc){
+      const j = rec.data && rec.data.judge;
+      if(!j) return null;
+      const grade = j.grade || "";
+      const verdict = grade + (j.score != null ? `（${j.score}）` : "");
+      const stance = /吉/.test(grade) ? "吉" : /凶/.test(grade) ? "凶" : "平";
+      const factors = [];
+      if(j.yongKin) factors.push("用神 " + j.yongKin);
+      if(Array.isArray(j.steps) && typeof j.steps[0] === "string") factors.push(j.steps[0]);
+      return {verdict: verdict || "—", stance, factors};
+    },
   },
 ];
 
-/* ── 建卡 ── */
-const RECS = {};
-const FRAMES = {};
-const enginesEl = $("engines");
+/* ── 建構版面 ── */
+const RECS = {}, FRAMES = {};
+const ROLE_NOTE = {taiyi:"天 · 大勢", liuren:"人 · 事應", qimen:"地 · 方位", liuyao:"決 · 取捨"};
+
+const sealsEl = $("seals");
+["taiyi","qimen","liuren"].forEach(k=>{        /* 天地人之序 */
+  const eng = ENGINES.find(e=>e.key===k);
+  const card = document.createElement("section");
+  card.className = "sealCard";
+  card.innerHTML = `
+    <div class="top">
+      <div class="sealTag">${eng.seal}</div>
+      <h3>${eng.name}</h3>
+      <span class="native" id="nat_${k}"></span>
+    </div>
+    <div class="verdict vNone" id="vd_${k}">（尚未起盤）</div>
+    <div class="factors" id="fx_${k}"></div>
+    <div class="foot">
+      <button class="minor" data-trace="${k}">溯源 · 展盤</button>
+      <span class="stLine idle" id="st_${k}">載入中…</span>
+    </div>`;
+  sealsEl.appendChild(card);
+});
+
+const decideEl = $("decide");
+(function(){
+  const eng = ENGINES.find(e=>e.key==="liuyao");
+  const card = document.createElement("section");
+  card.className = "sealCard";
+  card.innerHTML = `
+    <div class="top">
+      <div class="sealTag">${eng.seal}</div>
+      <h3>${eng.name}</h3>
+      <span class="native" id="nat_liuyao"></span>
+    </div>
+    <div class="verdict vNone" id="vd_liuyao">（尚未起盤）</div>
+    <div class="factors" id="fx_liuyao"></div>
+    <div class="foot">
+      <button class="minor" data-trace="liuyao">溯源 · 展盤</button>
+      <span class="stLine idle" id="st_liuyao">載入中…</span>
+    </div>`;
+  decideEl.appendChild(card);
+})();
+
+/* 溯源區：天人地決四盤 iframe（紫微僅 JSON） */
+const traceEl = $("tracezone");
 ENGINES.forEach(eng=>{
   RECS[eng.key] = {};
+  if(eng.key === "ziwei"){
+    const card = document.createElement("section");
+    card.className = "card";
+    card.innerHTML = `
+      <div class="head"><div class="sealTag">${eng.seal}</div><h3>${eng.name}</h3>
+        <span class="role" style="font-size:12px;color:var(--dim)">盤面常駐於上方中宮舞台</span></div>
+      <details><summary>原生回傳物件（錄取自引擎本人之呼叫）</summary><pre class="mono" id="raw_ziwei">（尚未起盤）</pre></details>`;
+    traceEl.appendChild(card);
+    return;
+  }
   const card = document.createElement("section");
   card.className = "card";
   card.innerHTML = `
     <div class="head">
       <div class="sealTag">${eng.seal}</div>
       <h3>${eng.name}</h3>
-      <span class="role">${eng.role}</span>
-      <span class="status idle" id="st_${eng.key}">載入中…</span>
+      <span class="role" style="font-size:12px;color:var(--dim)">${eng.role}</span>
     </div>
     <details><summary>原生回傳物件（錄取自引擎本人之呼叫）</summary><pre class="mono" id="raw_${eng.key}">（尚未起盤）</pre></details>
-    <details class="frameBox"><summary>展開盤面細看 · 盤由引擎本人繪製，展開收合皆不重算</summary>
+    <details class="frameBox" id="fb_${eng.key}"><summary>展開盤面細看 · 盤由引擎本人繪製，展開收合皆不重算</summary>
       <iframe id="fr_${eng.key}" src="${eng.path}" title="${eng.name}"></iframe>
     </details>`;
-  enginesEl.appendChild(card);
+  traceEl.appendChild(card);
 });
+
+/* 溯源按鈕與回頂 */
+document.addEventListener("click", e=>{
+  const k = e.target && e.target.dataset && e.target.dataset.trace;
+  if(k){
+    if(k === "ziwei") { $("stage").scrollIntoView({behavior:"smooth"}); return; }
+    const fb = $("fb_"+k);
+    if(fb){ fb.open = true; fb.scrollIntoView({behavior:"smooth"}); }
+  }
+});
+$("backTop").onclick = ()=> $("seals").scrollIntoView({behavior:"smooth"});
+
 function setStatus(key, cls, msg){
   const el = $("st_"+key);
-  el.className = "status "+cls;
+  if(!el) return;
+  el.className = (el.id==="st_ziwei" ? "stLine " : "stLine ") + cls;
   el.textContent = msg;
 }
 
@@ -641,7 +844,7 @@ ENGINES.forEach(eng=>{
   });
 });
 
-/* 太乙：系統一變，鏡進引擎並重收割派法，再套本頁硬規則（時計僅金鏡） */
+/* 太乙：系統一變，鏡進引擎並重收割派法，再套硬規則 */
 $("optTaiyiSystem").addEventListener("change", ()=>{
   try{
     const fr = FRAMES.taiyi, doc = fr.contentDocument, win = fr.contentWindow;
@@ -654,7 +857,7 @@ $("optTaiyiSystem").addEventListener("change", ()=>{
 
 /* ── 正典輸入 ── */
 $("freezeNow").onclick = ()=>{
-  const n = new Date();   /* 唯一一次讀取當下 */
+  const n = new Date();
   $("canonDate").value = `${n.getFullYear()}-${pad(n.getMonth()+1)}-${pad(n.getDate())}`;
   $("canonHH").value = pad(n.getHours());
   $("canonMM").value = pad(n.getMinutes());
@@ -686,12 +889,76 @@ function gatherCanon(){
   };
 }
 
+/* ── 印卡與張力 ── */
+const STANCES = {};
+function paintSeal(key, vec, nativeTxt){
+  const vd = $("vd_"+key), fx = $("fx_"+key), nat = $("nat_"+key);
+  if(nat && nativeTxt != null) nat.textContent = nativeTxt;
+  if(!vec){
+    if(vd){ vd.className = "verdict vNone"; vd.textContent = "（本輪無錄取，見報告區）"; }
+    if(fx) fx.textContent = "";
+    STANCES[key] = "未參";
+    return;
+  }
+  const cls = vec.stance==="吉" ? "vJi" : vec.stance==="凶" ? "vXiong" : vec.stance==="平" ? "vPing" : "vNone";
+  if(vd){ vd.className = "verdict " + cls; vd.textContent = vec.verdict; }
+  if(fx) fx.innerHTML = vec.factors.map(f=>"· "+f).join("<br>");
+  STANCES[key] = vec.stance;
+}
+const ROLE_CN = {taiyi:"天", liuren:"人", qimen:"地", liuyao:"決"};
+const CLASH = {
+  "天吉人凶":"天時有利，而人事課象不合——勢可乘，事需擇。",
+  "天凶人吉":"大環境不利，而人事可為——逆勢之中自有活路。",
+  "天吉地凶":"天時有利，而方位行動不利——時可待，動宜慎。",
+  "天凶地吉":"大環境不利，而方位可取——擇徑而行，以小博大。",
+  "人吉地凶":"人事可為，而方位不利——事在人為，行別踩錯方。",
+  "人凶地吉":"人事課象不合，而方位可取——位好事難，先修其內。",
+};
+function renderTension(){
+  const box = $("tension"), lines = $("tensionLines");
+  lines.innerHTML = "";
+  const trio = ["taiyi","liuren","qimen"];
+  const known = trio.filter(k=>STANCES[k]==="吉"||STANCES[k]==="凶"||STANCES[k]==="平");
+  const out = [];
+  if(known.length >= 2){
+    const vals = [...new Set(known.map(k=>STANCES[k]))];
+    if(vals.length === 1 && known.length >= 3){
+      out.push(`三才同氣：${vals[0]}。`);
+    }else{
+      for(let i=0;i<trio.length;i++)for(let j=i+1;j<trio.length;j++){
+        const a=trio[i], b=trio[j];
+        const sa=STANCES[a], sb=STANCES[b];
+        if((sa==="吉"&&sb==="凶")||(sa==="凶"&&sb==="吉")){
+          const key = ROLE_CN[a]+sa+ROLE_CN[b]+sb;
+          out.push(CLASH[key] || `${ROLE_CN[a]}示${sa}而${ROLE_CN[b]}示${sb}。`);
+        }
+      }
+      if(!out.length) out.push("三才氣機不一而無正沖，宜合參命盤。");
+    }
+  }
+  const dj = STANCES.liuyao;
+  if(dj==="吉"||dj==="凶"||dj==="平"){
+    const majVals = known.map(k=>STANCES[k]);
+    const agree = majVals.length && majVals.filter(v=>v===dj).length*2 > majVals.length;
+    out.push(agree ? `決與眾同：${dj}，可從。` : `諸盤之外，決示${dj}——臨門一問，以決為重。`);
+  }
+  if(out.length){
+    out.forEach(t=>{
+      const d = document.createElement("div");
+      d.className = "tl"; d.textContent = t;
+      lines.appendChild(d);
+    });
+    box.style.display = "";
+  }else box.style.display = "none";
+}
+
 /* ── 起盤 ── */
 $("castAll").onclick = ()=>{
   const canon = gatherCanon();
   if(!canon) return;
   $("castNote").textContent = "";
   REPORT.querySelectorAll(".castphase").forEach(el=>el.remove());
+  $("tension").style.display = "none";
   ENGINES.forEach(eng=>{
     if(!eng.wired) return;
     if(eng.canRun){
@@ -739,8 +1006,30 @@ $("castAll").onclick = ()=>{
       }
     }, 300);
   });
+
+  /* 印卡與張力：待分頁切換與渲染落定後節錄（不重算，只節錄） */
+  setTimeout(()=>{
+    const nats = {
+      taiyi:  ($("optTaiyiSystem").selectedOptions[0]||{}).text || "",
+      liuren: (resolveNative(NATIVE.liuren, canon.subject).text || ""),
+      qimen:  (QIMEN_MAP[canon.subject] || QIMEN_MAP["通占"]) + " 分頁",
+      liuyao: (liuyaoTarget(canon.subject).text || ""),
+    };
+    ["taiyi","liuren","qimen","liuyao"].forEach(k=>{
+      const eng = ENGINES.find(e=>e.key===k);
+      let vec = null;
+      try{
+        const rec = RECS[k];
+        const doc = FRAMES[k].contentDocument;
+        if(eng.extract) vec = eng.extract(rec, doc);
+      }catch(e){ vec = null; }
+      paintSeal(k, vec, nats[k]);
+    });
+    renderTension();
+  }, 1000);
 };
 
+rebuildLySub();
 renderSubjectMap();
 </script>
 </body>
