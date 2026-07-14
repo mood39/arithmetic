@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>三才聚頂 五術朝元</title>
+<title>三才聚頂 五式朝元</title>
 <style>
 :root{
   --ink:#141820; --ink2:#1c222e; --panel:#20283a; --step:#232c42; --line:#39435c;
@@ -66,6 +66,8 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .factors{font-size:12.5px;color:var(--dim);line-height:1.8}
 .factors p{margin:0 0 6px}
 .factors.prose{color:var(--paper);font-size:13.5px;line-height:1.9}
+.fHead{color:var(--gold);font-weight:700;font-size:13.5px;margin-top:6px}
+.fBody{color:var(--paper)}
 .card details.frameBox summary{cursor:pointer;padding:7px 16px;font-size:12px;color:var(--gold-dim);letter-spacing:.1em}
 .card details.frameBox[open] summary{border-bottom:1px solid var(--line)}
 .card iframe{width:100%;height:620px;border:0;display:block;background:#fff}
@@ -85,7 +87,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 <body>
 
 <header>
-  <h1>三才聚頂　五術朝元<small>太乙神數 · 紫微斗數 · 大六壬 · 奇門遁甲 · 納甲六爻</small></h1>
+  <h1>三才聚頂　五式朝元<small>太乙神數 · 紫微斗數 · 大六壬 · 奇門遁甲 · 納甲六爻</small></h1>
   <p class="thesis">五盤不重算，判斷以干支五行為共通語言，分歧保留、不強行合一。</p>
 </header>
 
@@ -118,6 +120,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
       <label class="f">經度
         <input type="number" id="canonLon" step="0.1" value="121.5" min="-180" max="180" style="min-width:84px">
       </label>
+      <button id="geoBtn" style="font-size:12px;padding:6px 10px;letter-spacing:.05em">定位</button>
       <label class="toggle"><input type="checkbox" id="canonTst" checked> 真太陽時</label>
       <label class="toggle"><input type="checkbox" id="canonLateZi" checked> 夜子時歸翌日</label>
     </div>
@@ -645,6 +648,20 @@ const ENGINES = [
         if(p1) factors.push(p1);
         const p2 = pick("象主要來自");
         if(p2 && p2 !== p1) factors.push(p2);
+        /* 經文判斷之經典內容：課體名（標題）＋斷語；合計/畢法賦說明不取 */
+        const jm = deepestWith(doc, "經文判斷");
+        if(jm){
+          let ls = textLines(blockAround(jm, 60).innerText);
+          const i0 = ls.findIndex(l=>l.includes("經文判斷"));
+          if(i0 >= 0) ls = ls.slice(i0+1);
+          const iEnd = ls.findIndex(l=>/^(經文層合計|畢法賦|本課未觸發)/.test(l));
+          if(iEnd >= 0) ls = ls.slice(0, iEnd);
+          if(ls.length){
+            let head = ls[0], rest = ls.slice(1);
+            if(rest.length && /^[吉凶中平]$/.test(rest[0])){ head += "　" + rest[0]; rest = rest.slice(1); }
+            factors.push({head, body: rest});
+          }
+        }
       }catch(e){}
       if(verdict) return {verdict, stance, factors};
       const d = rec.data;
@@ -880,15 +897,34 @@ $("optTaiyiSystem").addEventListener("change", ()=>{
 });
 
 /* ── 正典輸入 ── */
-$("freezeNow").onclick = ()=>{
+let timeSet = false;   /* 事時是否被使用者定過（手選或凍結）；未定即起盤 → 視同凍結此刻＋起盤 */
+["canonY","canonMo","canonD","canonHH","canonMM"].forEach(id=>{
+  $(id).addEventListener("change", ()=>{ timeSet = true; });
+});
+function freezeNowFill(){
   const n = new Date();
-  $("canonY").value = n.getFullYear();
+  $("canonY").value = String(n.getFullYear());
   $("canonMo").value = pad(n.getMonth()+1);
   $("canonD").value = pad(n.getDate());
   $("canonHH").value = pad(n.getHours());
   $("canonMM").value = pad(n.getMinutes());
+  timeSet = true;
+}
+$("freezeNow").onclick = ()=>{
+  freezeNowFill();
   $("castNote").textContent = "此刻已凍結，五盤共用。";
 };
+/* 經度：載入時嘗試裝置定位（拿不到就保留預設），亦可按「定位」重取 */
+function geoLon(){
+  if(!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(
+    p => { $("canonLon").value = p.coords.longitude.toFixed(1); },
+    () => {},
+    {timeout:5000, maximumAge:600000}
+  );
+}
+$("geoBtn").onclick = geoLon;
+geoLon();
 
 function gatherCanon(){
   const y = $("canonY").value;
@@ -936,7 +972,13 @@ function paintSeal(key, vec, nativeTxt){
       fx.innerHTML = vec.factors.map(f=>`<p>${esc(f)}</p>`).join("");
     }else{
       fx.className = "factors";
-      fx.innerHTML = vec.factors.map(f=>"· "+esc(f)).join("<br>");
+      fx.innerHTML = vec.factors.map(f=>{
+        if(f && typeof f === "object" && f.head){
+          const body = (f.body||[]).map(esc).join("<br>");
+          return `<div class="fHead">${esc(f.head)}</div>` + (body ? `<div class="fBody">${body}</div>` : "");
+        }
+        return "· " + esc(f);
+      }).join("<br>");
     }
   }
   STANCES[key] = vec.stance;
@@ -990,9 +1032,11 @@ function renderTension(){
 
 /* ── 起盤 ── */
 $("castAll").onclick = ()=>{
+  const autoFroze = !timeSet;
+  if(autoFroze) freezeNowFill();          /* 未指定事時：視同凍結此刻＋起盤 */
   const canon = gatherCanon();
   if(!canon) return;
-  $("castNote").textContent = "";
+  $("castNote").textContent = autoFroze ? "未指定事時——已自動凍結此刻起盤。" : "";
   REPORT.querySelectorAll(".castphase").forEach(el=>el.remove());
   $("tension").style.display = "none";
   ENGINES.forEach(eng=>{
