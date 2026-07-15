@@ -68,6 +68,16 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .factors.prose{color:var(--paper);font-size:13.5px;line-height:1.9}
 .fHead{color:var(--gold);font-weight:700;font-size:13.5px;margin-top:6px}
 .fBody{color:var(--paper)}
+
+/* ── 白話卡牌 ── */
+#cardZone{max-width:1180px;margin:0 auto 22px;border:1px solid var(--line);border-radius:6px;background:var(--ink2)}
+#cardZone summary{cursor:pointer;padding:10px 16px;font-size:14px;letter-spacing:.25em;color:var(--gold-dim)}
+#cardZone[open] summary{border-bottom:1px solid var(--line);color:var(--gold)}
+.cardTop{display:flex;align-items:center;gap:14px;padding:12px 16px 4px;flex-wrap:wrap}
+#cardNote{font-size:12px;color:var(--dim)}
+.cardRail{display:flex;gap:16px;overflow-x:auto;padding:10px 16px 20px;scroll-snap-type:x mandatory}
+.cardRail canvas{flex:0 0 23.8%;width:23.8%;height:auto;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.5);scroll-snap-align:center}
+@media (max-width:900px){ .cardRail canvas{flex:0 0 86%;width:86%} }
 .card details.frameBox summary{cursor:pointer;padding:7px 16px;font-size:12px;color:var(--gold-dim);letter-spacing:.1em}
 .card details.frameBox[open] summary{border-bottom:1px solid var(--line)}
 .card iframe{width:100%;height:620px;border:0;display:block;background:#fff}
@@ -184,6 +194,16 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 </section>
 
 <div id="report"></div>
+
+<!-- ════════ 白話卡牌 ════════ -->
+<details id="cardZone">
+  <summary>白話卡牌 · 四張（起盤後生成）</summary>
+  <div class="cardTop">
+    <button id="dlCards">卡牌下載</button>
+    <span id="cardNote">尚未起盤——起盤後自動生成四張卡牌。</span>
+  </div>
+  <div class="cardRail" id="cardRail"></div>
+</details>
 
 <!-- ════════ 天 · 地 · 人 · 決 ════════ -->
 <div id="mains"></div>
@@ -954,6 +974,7 @@ function gatherCanon(){
 
 /* ── 印語與張力 ── */
 const STANCES = {};
+const VECS = {};   /* 各家最近一次節錄向量，供白話卡牌取材 */
 function paintSeal(key, vec, nativeTxt){
   const vd = $("vd_"+key), fx = $("fx_"+key), nat = $("nat_"+key);
   if(nat && nativeTxt != null) nat.textContent = nativeTxt;
@@ -1030,6 +1051,209 @@ function renderTension(){
   }else box.style.display = "none";
 }
 
+/* ═══════ 白話卡牌 ═══════
+   白話採詞表對譯：已收錄之句逐一替換，未收錄者照原文呈現（絕不杜撰）。
+   卡面以 canvas 繪製（1080×1620），展示與下載共用同一畫布。 */
+const PLAIN_MAP = [
+  /* 太乙 · 迫格 */
+  ["權臣逼主、上下相凌","掌權者壓過主事者，上下彼此傾軋"],
+  ["辰迫災急","情勢緊迫，禍事來得快"],
+  [/^迫[:：]/,"壓迫之象："],
+  /* 六壬 · 課體斷語（已知句；其餘課體原句待收錄） */
+  ["擇比者用之，事有兩歧，宜就近就親而謀。","事情出現兩條路，選與自己相近、相熟的那一方去進行較有利。"],
+  ["涉害取仲，機微難辨，宜察之又察。","情勢牽涉利害、關鍵細節難以看清，務必反覆查證，切勿輕率行動。"],
+  /* 六爻 · 敘事模板句式 */
+  ["此課問","這一卦問的是"],
+  ["局由「","卦局從「"],
+  ["」趨「","」走向「"],
+  ["」而止","」為止（靜而不變）"],
+  ["象數面：評","從卦象結構看：評為"],
+  ["義理面：主讀","從經文義理看：重點在"],
+  ["兩面同聲相應","卦象與經文兩面結論一致"],
+  ["兩面相左","卦象與經文兩面結論相反"],
+  ["象數管「時」、義理管「道」","卦象管「時機」，經文管「方向」"],
+  ["道對而時未至","方向正確，只是時機未到"],
+  ["助多阻少","助力多、阻力少"],
+  ["阻多助少","阻力多、助力少"],
+  ["阻力偏重","阻力偏多"],
+  ["助力在","有利之處在"],
+  ["阻力在","不利之處在"],
+  ["得令正旺","正當時令、氣勢旺盛"],
+  ["得日生扶","得當日之氣生助"],
+  ["被月沖破","受當月之氣沖剋"],
+  ["受月壓制","受當月之氣壓制"],
+  ["卦身臨用神","卦身正落在關鍵用神上"],
+  ["事體未明","事情本身尚不明朗"],
+  ["意謂","意思是"],
+  ["雖有波折而無大害、順遂","雖有波折但無大礙，整體順利"],
+  ["可放手推進，唯守其正、勿因順遂而疏於審視","可以放手去做，但要守住原則，別因順利而疏於檢視"],
+  ["宜守正緩行、先解阻力，待時勢回暖，義理之吉方能兌現","宜守住正道、放慢腳步，先化解阻力；等時勢回暖，好結果才會兌現"],
+  ["切忌因一時受挫而改弦易轍","千萬別因一時受挫就改變方向"],
+  ["讀法是","解讀方式是"],
+  ["應期：","應驗時機："],
+  ["旺靜逢沖而應","旺而靜的關鍵爻遇沖則應"],
+  ["衰靜逢值而應","衰而靜的關鍵爻逢值則應"],
+  [/近應([子丑寅卯辰巳午未申酉戌亥])日/g,"最近落在$1日前後"],
+];
+function toPlain(t){
+  let s = String(t);
+  for(const [k,v] of PLAIN_MAP){
+    if(k instanceof RegExp) s = s.replace(k, v);
+    else s = s.split(k).join(v);
+  }
+  return s;
+}
+function cardDataAll(){
+  const defs = [
+    {k:"taiyi",  seal:"天", eng:"太乙神數"},
+    {k:"qimen",  seal:"地", eng:"奇門遁甲"},
+    {k:"liuren", seal:"人", eng:"大六壬"},
+    {k:"liuyao", seal:"決", eng:"納甲六爻"},
+  ];
+  return defs.map(d=>{
+    const v = VECS[d.k];
+    if(!v) return {...d, head:"（本輪無錄取）", sub:"", body:"", stance:"平"};
+    if(d.k === "taiyi"){
+      const strs = (v.factors||[]).filter(f=>typeof f === "string");
+      const po = strs.find(f=>/^迫[:：]/.test(f));
+      return {...d, head:v.verdict, sub:"", body:toPlain(po || strs[0] || ""), stance:v.stance};
+    }
+    if(d.k === "qimen"){
+      return {...d, head:v.verdict, sub:"",
+              body:(v.factors||[]).filter(f=>typeof f === "string").join("\n"), stance:v.stance};
+    }
+    if(d.k === "liuren"){
+      const o = (v.factors||[]).find(f=>f && typeof f === "object" && f.head);
+      return {...d, head:v.verdict, sub:o ? o.head : "",
+              body:o ? toPlain((o.body||[]).join("\n")) : "", stance:v.stance};
+    }
+    const full = (v.factors||[]).filter(f=>typeof f === "string").join("\n");
+    const m = full.match(/^(此課問[^，。\n]*)[，。]?\s*([\s\S]*)$/);
+    return {...d, head: m ? toPlain(m[1]) : (v.verdict||"—"), sub:"",
+            body: toPlain(m ? m[2] : full), stance:v.stance};
+  });
+}
+function roundRectPath(x, px, py, w, h, r){
+  x.beginPath();
+  x.moveTo(px+r, py);
+  x.arcTo(px+w, py, px+w, py+h, r);
+  x.arcTo(px+w, py+h, px, py+h, r);
+  x.arcTo(px, py+h, px, py, r);
+  x.arcTo(px, py, px+w, py, r);
+  x.closePath();
+}
+function wrapCJK(x, text, maxW){
+  const out = [];
+  for(const seg of String(text).split(/\n+/)){
+    let cur = "";
+    for(const ch of seg){
+      if(x.measureText(cur+ch).width > maxW){ out.push(cur); cur = ch; }
+      else cur += ch;
+    }
+    if(cur) out.push(cur);
+  }
+  return out;
+}
+const CARD_SERIF = '"Noto Serif TC","Songti TC","PMingLiU",serif';
+function cardCenter(x, W, t, y, f, color, ls){
+  x.font = f; x.fillStyle = color;
+  if(ls){
+    const chars = [...t];
+    const ws = chars.map(ch=>x.measureText(ch).width);
+    const total = ws.reduce((a,b)=>a+b,0) + ls*(chars.length-1);
+    let cx = W/2 - total/2;
+    x.textAlign = "left";
+    chars.forEach((ch,i)=>{ x.fillText(ch, cx, y); cx += ws[i]+ls; });
+  }else{
+    x.textAlign = "center";
+    x.fillText(t, W/2, y);
+  }
+}
+function drawCard(cv, d){
+  const W = 1080, H = 1620;
+  cv.width = W; cv.height = H;
+  const x = cv.getContext("2d");
+  /* 淺底 */
+  x.fillStyle = "#f4edda"; x.fillRect(0,0,W,H);
+  /* 古風雙線框 */
+  x.strokeStyle = "#7a5f28"; x.lineWidth = 10; x.strokeRect(28,28,W-56,H-56);
+  x.lineWidth = 3; x.strokeRect(58,58,W-116,H-116);
+  /* 四角回紋角飾 */
+  x.strokeStyle = "#a33c34"; x.lineWidth = 5;
+  const c = 46, o = 58;
+  [[o,o,1,1],[W-o,o,-1,1],[o,H-o,1,-1],[W-o,H-o,-1,-1]].forEach(([px,py,sx,sy])=>{
+    x.beginPath();
+    x.moveTo(px+sx*c, py); x.lineTo(px, py); x.lineTo(px, py+sy*c); x.stroke();
+    x.beginPath();
+    x.moveTo(px+sx*(c*0.62), py+sy*16); x.lineTo(px+sx*16, py+sy*16); x.lineTo(px+sx*16, py+sy*(c*0.62)); x.stroke();
+  });
+  /* 頂題 */
+  cardCenter(x, W, "三才聚頂 · 五式朝元", 152, `500 38px ${CARD_SERIF}`, "#6b5322", 6);
+  x.strokeStyle = "#b49b5f"; x.lineWidth = 2;
+  x.beginPath(); x.moveTo(210,192); x.lineTo(W-210,192); x.stroke();
+  /* 印 */
+  x.beginPath(); x.arc(W/2, 302, 72, 0, Math.PI*2);
+  x.strokeStyle = "#a33c34"; x.lineWidth = 6; x.stroke();
+  cardCenter(x, W, d.seal, 332, `700 86px ${CARD_SERIF}`, "#a33c34");
+  /* 判詞章：加底色加框，依吉凶著色 */
+  const stCol = d.stance==="吉" ? "#3f6e4c" : d.stance==="凶" ? "#a33c34" : "#7a5f28";
+  let hf = 52;
+  x.font = `700 ${hf}px ${CARD_SERIF}`;
+  while(x.measureText(d.head).width > W-300 && hf > 30){
+    hf -= 4; x.font = `700 ${hf}px ${CARD_SERIF}`;
+  }
+  const hw = x.measureText(d.head).width;
+  const chipW = Math.min(W-180, hw+96), chipY = 398, chipH = 100;
+  x.fillStyle = "#ece0bd"; x.strokeStyle = stCol; x.lineWidth = 4;
+  roundRectPath(x, W/2-chipW/2, chipY, chipW, chipH, 14);
+  x.fill(); x.stroke();
+  x.fillStyle = "#2b2620"; x.textAlign = "center";
+  x.fillText(d.head, W/2, chipY + chipH/2 + hf*0.36);
+  /* 課體小標（六壬） */
+  let bodyTop = chipY + chipH + 60;
+  if(d.sub){
+    cardCenter(x, W, d.sub, bodyTop, `700 44px ${CARD_SERIF}`, "#a33c34");
+    bodyTop += 66;
+  }
+  /* 內文：自動縮字避免溢框 */
+  const left = 132, maxW = W - 264, bottom = H - 200;
+  let fs = 38, lines;
+  for(;;){
+    x.font = `400 ${fs}px ${CARD_SERIF}`;
+    lines = wrapCJK(x, d.body, maxW);
+    if(bodyTop + lines.length * fs * 1.62 <= bottom || fs <= 24) break;
+    fs -= 2;
+  }
+  x.fillStyle = "#3a332a"; x.textAlign = "left";
+  const lh = fs * 1.62;
+  lines.forEach((ln,i)=>x.fillText(ln, left, bodyTop + (i+0.8)*lh));
+  /* 底標 */
+  x.strokeStyle = "#b49b5f"; x.lineWidth = 2;
+  x.beginPath(); x.moveTo(210,H-168); x.lineTo(W-210,H-168); x.stroke();
+  cardCenter(x, W, d.eng, H-102, `700 46px ${CARD_SERIF}`, "#4a3d22", 10);
+}
+let CARDS = [];
+function buildCards(){
+  const rail = $("cardRail");
+  rail.innerHTML = ""; CARDS = [];
+  cardDataAll().forEach(d=>{
+    const cv = document.createElement("canvas");
+    drawCard(cv, d);
+    rail.appendChild(cv);
+    CARDS.push({canvas:cv, seal:d.seal, eng:d.eng});
+  });
+  $("cardNote").textContent = "四張已生成——白話為詞表對譯，未收錄之句照原文呈現。";
+}
+$("dlCards").onclick = ()=>{
+  if(!CARDS.length){ $("cardNote").textContent = "請先起盤，再下載卡牌。"; return; }
+  CARDS.forEach((c,i)=>setTimeout(()=>{
+    const a = document.createElement("a");
+    a.href = c.canvas.toDataURL("image/jpeg", 0.92);
+    a.download = `卡牌_${c.seal}_${c.eng}.jpg`;
+    document.body.appendChild(a); a.click(); a.remove();
+  }, i*350));
+};
+
 /* ── 起盤 ── */
 $("castAll").onclick = ()=>{
   const autoFroze = !timeSet;
@@ -1093,9 +1317,11 @@ $("castAll").onclick = ()=>{
       try{
         vec = eng.extract ? eng.extract(RECS[k], FRAMES[k].contentDocument) : null;
       }catch(e){ vec = null; }
+      VECS[k] = vec;
       paintSeal(k, vec, nats[k]);
     });
     renderTension();
+    buildCards();
     document.querySelectorAll(".frameBox[open]").forEach(fb=>fitFrame(fb.dataset.key));
   }, 1000);
 };
