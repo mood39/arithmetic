@@ -1094,13 +1094,29 @@ const PLAIN_MAP = [
   ["旺靜逢沖而應","旺而靜的關鍵爻遇沖則應"],
   ["衰靜逢值而應","衰而靜的關鍵爻逢值則應"],
   [/近應([子丑寅卯辰巳午未申酉戌亥])日/g,"最近落在$1日前後"],
+  /* 太乙 · 擊囚等格 */
+  ["內部有下凌上、將相相伐之風險","內部有下屬凌駕上位、高層彼此內鬥的風險"],
+  ["防功高震主、猜忌禁錮之變","當心功勞太大反遭上位猜忌，甚至被架空禁錮的變局"],
+  [/^擊[:：]/,"攻擊之象："],
+  [/^囚[:：]/,"囚困之象："],
+  [/^格[:：]/,"阻格之象："],
+  [/^關[:：]/,"關隔之象："],
+  [/^掩[:：]/,"掩蔽之象："],
+  /* 六爻 · 白話補遺 */
+  ["時勢與方向俱佳","時機與方向都好"],
+  ["爻辭指的方向並不誤，只是眼下","爻辭指的方向沒有錯，只是目前"],
+  ["雖有波折而無大害","雖然會有波折但沒有大礙"],
+  ["力有未逮","力量還不夠"],
+  ["無大害","沒有大礙"],
+  ["順遂","順利"],
 ];
+/* 依句長排序：長句先換、短詞後換，避免短詞先動壞了長句比對；正則最後套用 */
+const PLAIN_STR = PLAIN_MAP.filter(([k])=>typeof k === "string").sort((a,b)=>b[0].length - a[0].length);
+const PLAIN_RE  = PLAIN_MAP.filter(([k])=>k instanceof RegExp);
 function toPlain(t){
   let s = String(t);
-  for(const [k,v] of PLAIN_MAP){
-    if(k instanceof RegExp) s = s.replace(k, v);
-    else s = s.split(k).join(v);
-  }
+  for(const [k,v] of PLAIN_STR) s = s.split(k).join(v);
+  for(const [k,v] of PLAIN_RE)  s = s.replace(k, v);
   return s;
 }
 function cardDataAll(){
@@ -1115,8 +1131,9 @@ function cardDataAll(){
     if(!v) return {...d, head:"（本輪無錄取）", sub:"", body:"", stance:"平"};
     if(d.k === "taiyi"){
       const strs = (v.factors||[]).filter(f=>typeof f === "string");
-      const po = strs.find(f=>/^迫[:：]/.test(f));
-      return {...d, head:v.verdict, sub:"", body:toPlain(po || strs[0] || ""), stance:v.stance};
+      const pats = strs.filter(f=>/^(迫|擊|囚|格|關|掩)[:：]/.test(f));
+      const body = (pats.length ? pats : strs.slice(0,1)).map(toPlain).join("\n");
+      return {...d, head:v.verdict, sub:"", body, stance:v.stance};
     }
     if(d.k === "qimen"){
       return {...d, head:v.verdict, sub:"",
@@ -1169,6 +1186,45 @@ function cardCenter(x, W, t, y, f, color, ls){
     x.fillText(t, W/2, y);
   }
 }
+/* 底部浮水印：天圓 · 地方九宮 · 人三角 · 決三爻（單色淡印，四張各異） */
+function drawWatermark(x, W, H, seal){
+  const cx = W/2, cy = H - 430, s = 190;
+  x.save();
+  x.globalAlpha = 0.11;
+  x.lineWidth = 14;
+  if(seal === "天"){
+    x.strokeStyle = "#3b5b8c";   /* 靛青 · 天圓 */
+    [s, s*0.66, s*0.32].forEach(r=>{ x.beginPath(); x.arc(cx,cy,r,0,Math.PI*2); x.stroke(); });
+  }else if(seal === "地"){
+    x.strokeStyle = "#8c6a3b";   /* 赭黃 · 地方九宮 */
+    const g = s*2;
+    x.strokeRect(cx-s, cy-s, g, g);
+    x.beginPath();
+    x.moveTo(cx-s+g/3, cy-s);   x.lineTo(cx-s+g/3, cy+s);
+    x.moveTo(cx-s+2*g/3, cy-s); x.lineTo(cx-s+2*g/3, cy+s);
+    x.moveTo(cx-s, cy-s+g/3);   x.lineTo(cx+s, cy-s+g/3);
+    x.moveTo(cx-s, cy-s+2*g/3); x.lineTo(cx+s, cy-s+2*g/3);
+    x.stroke();
+  }else if(seal === "人"){
+    x.strokeStyle = "#8c3b46";   /* 絳紅 · 人三角 */
+    x.beginPath();
+    x.moveTo(cx, cy-s); x.lineTo(cx-s*0.95, cy+s*0.75); x.lineTo(cx+s*0.95, cy+s*0.75); x.closePath();
+    x.stroke();
+    x.beginPath();
+    x.moveTo(cx, cy-s*0.45); x.lineTo(cx-s*0.5, cy+s*0.42); x.lineTo(cx+s*0.5, cy+s*0.42); x.closePath();
+    x.stroke();
+  }else{
+    x.strokeStyle = "#5b4c8c";   /* 玄紫 · 離卦三爻（文明以斷） */
+    const w = s*1.7;
+    x.lineWidth = 26;
+    const ys = [cy-s*0.62, cy, cy+s*0.62];
+    x.beginPath(); x.moveTo(cx-w/2, ys[0]); x.lineTo(cx+w/2, ys[0]); x.stroke();
+    x.beginPath(); x.moveTo(cx-w/2, ys[1]); x.lineTo(cx-w*0.08, ys[1]); x.stroke();
+    x.beginPath(); x.moveTo(cx+w*0.08, ys[1]); x.lineTo(cx+w/2, ys[1]); x.stroke();
+    x.beginPath(); x.moveTo(cx-w/2, ys[2]); x.lineTo(cx+w/2, ys[2]); x.stroke();
+  }
+  x.restore();
+}
 function drawCard(cv, d){
   const W = 1080, H = 1620;
   cv.width = W; cv.height = H;
@@ -1187,6 +1243,8 @@ function drawCard(cv, d){
     x.beginPath();
     x.moveTo(px+sx*(c*0.62), py+sy*16); x.lineTo(px+sx*16, py+sy*16); x.lineTo(px+sx*16, py+sy*(c*0.62)); x.stroke();
   });
+  /* 浮水印先鋪，文字後上 */
+  drawWatermark(x, W, H, d.seal);
   /* 頂題 */
   cardCenter(x, W, "三才聚頂 · 五式朝元", 152, `500 38px ${CARD_SERIF}`, "#6b5322", 6);
   x.strokeStyle = "#b49b5f"; x.lineWidth = 2;
@@ -1244,8 +1302,23 @@ function buildCards(){
   });
   $("cardNote").textContent = "四張已生成——白話為詞表對譯，未收錄之句照原文呈現。";
 }
-$("dlCards").onclick = ()=>{
+$("dlCards").onclick = async ()=>{
   if(!CARDS.length){ $("cardNote").textContent = "請先起盤，再下載卡牌。"; return; }
+  /* 行動裝置：走系統分享面板（iOS 可「儲存影像」直入相簿，四張一次） */
+  try{
+    if(navigator.canShare){
+      const files = await Promise.all(CARDS.map(c=>new Promise(res=>{
+        c.canvas.toBlob(b=>res(new File([b], `卡牌_${c.seal}_${c.eng}.jpg`, {type:"image/jpeg"})), "image/jpeg", 0.92);
+      })));
+      if(navigator.canShare({files})){
+        await navigator.share({files, title:"三才聚頂 · 五式朝元"});
+        return;
+      }
+    }
+  }catch(e){
+    if(e && e.name === "AbortError") return;   /* 使用者取消分享 */
+  }
+  /* 桌面或不支援分享：逐張下載 */
   CARDS.forEach((c,i)=>setTimeout(()=>{
     const a = document.createElement("a");
     a.href = c.canvas.toDataURL("image/jpeg", 0.92);
