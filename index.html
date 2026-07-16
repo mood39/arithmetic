@@ -1214,14 +1214,20 @@ function drawWatermark(x, W, H, seal){
     x.moveTo(cx, cy-s*0.45); x.lineTo(cx-s*0.5, cy+s*0.42); x.lineTo(cx+s*0.5, cy+s*0.42); x.closePath();
     x.stroke();
   }else{
-    x.strokeStyle = "#5b4c8c";   /* 玄紫 · 離卦三爻（文明以斷） */
-    const w = s*1.7;
-    x.lineWidth = 26;
-    const ys = [cy-s*0.62, cy, cy+s*0.62];
-    x.beginPath(); x.moveTo(cx-w/2, ys[0]); x.lineTo(cx+w/2, ys[0]); x.stroke();
-    x.beginPath(); x.moveTo(cx-w/2, ys[1]); x.lineTo(cx-w*0.08, ys[1]); x.stroke();
-    x.beginPath(); x.moveTo(cx+w*0.08, ys[1]); x.lineTo(cx+w/2, ys[1]); x.stroke();
-    x.beginPath(); x.moveTo(cx-w/2, ys[2]); x.lineTo(cx+w/2, ys[2]); x.stroke();
+    x.strokeStyle = "#5b4c8c";   /* 玄紫 · 太極（決攬全局，兩儀相涵） */
+    x.fillStyle = "#5b4c8c";
+    const R = 200;
+    x.lineWidth = 10;
+    x.beginPath(); x.arc(cx, cy, R, 0, Math.PI*2); x.stroke();      /* 外圓 */
+    x.beginPath();                                                   /* 陽半 S 形 */
+    x.arc(cx, cy, R, -Math.PI/2, Math.PI/2, false);
+    x.arc(cx, cy + R/2, R/2, Math.PI/2, -Math.PI/2, false);
+    x.arc(cx, cy - R/2, R/2, Math.PI/2, -Math.PI/2, true);
+    x.closePath(); x.fill();
+    x.beginPath(); x.arc(cx, cy + R/2, R/6.5, 0, Math.PI*2); x.fill();   /* 陰中陽眼 */
+    x.globalAlpha = 1;
+    x.fillStyle = "#f4edda";                                          /* 陽中陰眼：以紙底色開孔 */
+    x.beginPath(); x.arc(cx, cy - R/2, R/6.5, 0, Math.PI*2); x.fill();
   }
   x.restore();
 }
