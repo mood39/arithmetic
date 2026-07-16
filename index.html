@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>三才聚頂 五式朝元</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#141820">
+<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="五式朝元">
 <style>
 :root{
   --ink:#141820; --ink2:#1c222e; --panel:#20283a; --step:#232c42; --line:#39435c;
@@ -1407,6 +1415,12 @@ $("castAll").onclick = ()=>{
 
 rebuildLySub();
 renderSubjectMap();
+
+/* ── PWA：Service Worker 註冊（根路徑優先，涵蓋五引擎；退本地 scope）── */
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("/sw.js")
+    .catch(()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+}
 </script>
 </body>
 </html>
