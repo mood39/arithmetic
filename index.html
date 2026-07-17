@@ -224,11 +224,11 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 </details>
 
 <!-- ════════ 擇時掃描 ════════ -->
-<details id="scanZone">
-  <summary>擇時掃描 · 吉凶曲線（起盤後可掃）</summary>
+<details id="scanZone" open>
+  <summary>擇時掃描 · 吉凶曲線（起盤即自動掃描）</summary>
   <div class="scanTop">
-    <button id="scanBtn">掃 描</button>
-    <span id="scanNote">範圍依太乙系統：時計掃未來三個月（逐時辰、標最佳時辰），其餘掃未來一年（逐日、標最佳日）。兩線同源六壬：事境線不含年命（人人相同），個人線含年命行年（隨命主而異）——起式命主填妥方有個人線。</span>
+    <button id="scanBtn">重 掃</button>
+    <span id="scanNote">起盤後自動掃描。範圍依太乙系統：時計掃未來三個月（逐時辰、標最佳時辰），其餘掃未來一年（逐日、標最佳日）。底色帶＝太乙天時（綠吉·紅凶）；金線＝事境（六壬·不含年命，人人相同）；綠線＝個人（含年命行年，隨命主而異，命主填妥方有）。</span>
   </div>
   <canvas id="scanCv" style="display:none"></canvas>
   <div id="scanBest"></div>
@@ -502,13 +502,16 @@ const ENGINES = [
     path:"/Taiyishenshu/", wired:true,
     probeGlobals:["compute","computeHour"],
     patch(win, rec){
+      win.__aggOrigTY = {};                 /* 掃描走原始函式，不污染錄取 */
       ["compute","computeHour"].forEach(fn=>{
         const orig = win[fn];
         if(typeof orig !== "function") return;
+        win.__aggOrigTY[fn] = orig;
         win[fn] = function(...a){
           const r = orig.apply(this, a);
           rec.data = rec.data || {};
           rec.data[fn] = r; rec.at = Date.now();
+          rec.lastCall = {fn, args:a.slice()};   /* 錄引擎親手之呼叫參數，作掃描模板 */
           return r;
         };
       });
@@ -1391,6 +1394,192 @@ $("dlCards").onclick = async ()=>{
   }, i*350));
 };
 
+/* ═══════ 擇時掃描 ═══════
+   三才同框：太乙天時為底色帶（綠吉·紅凶），六壬雙線為前景。
+   事境線＝年命關（人人相同）、個人線＝年命開（隨命主異），同尺度可疊。
+   模板取自引擎親手之呼叫（六壬錄 input、太乙錄 args），逐點呼叫原始函式，不污染錄取。
+   時間預算制分批（每批 ≤30ms 即讓出畫面），任何例外明示於掃描區與報告區。 */
+const SCAN = {running:false};
+function scanScoreOf(r){
+  const s = r && r.score;
+  if(typeof s === "number") return s;
+  if(s && typeof s.total === "number") return s.total;
+  return null;
+}
+function scanInputAt(tpl, t){
+  return Object.assign({}, tpl, {
+    y:t.getFullYear(), m:t.getMonth()+1, d:t.getDate(),
+    hour:t.getHours(), minute:t.getMinutes(),
+  });
+}
+function scanFmt(t, hourly){
+  return hourly ? `${t.getMonth()+1}/${t.getDate()} ${pad(t.getHours())}時`
+                : `${t.getFullYear()}/${t.getMonth()+1}/${t.getDate()}`;
+}
+function drawScanChart(samples, env, per, bands, hourly){
+  const cv = $("scanCv");
+  const W = 1200, H = 330;
+  cv.width = W; cv.height = H; cv.style.display = "block";
+  const g = cv.getContext("2d");
+  g.fillStyle = "#141820"; g.fillRect(0,0,W,H);
+  const L=66, R=20, T=18, B=44;
+  const all = env.concat(per).filter(v=>typeof v === "number");
+  if(!all.length) return false;
+  let lo = Math.min(...all), hi = Math.max(...all);
+  if(lo === hi){ lo -= 1; hi += 1; }
+  const padV = (hi-lo)*0.08; lo -= padV; hi += padV;
+  const X = i => L + (W-L-R) * i / (samples.length-1);
+  const Y = v => T + (H-T-B) * (1 - (v-lo)/(hi-lo));
+  /* 太乙天時色帶（連續同值區段合併塗底） */
+  if(bands && bands.length){
+    let i0 = 0;
+    for(let i=1; i<=bands.length; i++){
+      if(i === bands.length || bands[i] !== bands[i0]){
+        const v = bands[i0];
+        if(v !== 0){
+          g.fillStyle = v > 0 ? "rgba(111,165,131,.13)" : "rgba(187,70,50,.13)";
+          g.fillRect(X(i0), T, Math.max(X(i-1)-X(i0), 2), H-T-B);
+        }
+        i0 = i;
+      }
+    }
+  }
+  if(lo < 0 && hi > 0){
+    g.strokeStyle = "#39435c"; g.lineWidth = 1; g.setLineDash([4,4]);
+    g.beginPath(); g.moveTo(L, Y(0)); g.lineTo(W-R, Y(0)); g.stroke(); g.setLineDash([]);
+  }
+  g.font = '20px "Noto Serif TC","Songti TC",serif';
+  let lastM = -1;
+  samples.forEach((t,i)=>{
+    if(t.getMonth() !== lastM){
+      lastM = t.getMonth();
+      if(i > 0){
+        g.strokeStyle = "rgba(57,67,92,.55)"; g.lineWidth = 1;
+        g.beginPath(); g.moveTo(X(i), T); g.lineTo(X(i), H-B); g.stroke();
+      }
+      g.fillStyle = "#8f95a3"; g.textAlign = "center";
+      g.fillText(`${t.getMonth()+1}月`, Math.min(X(i)+30, W-R-20), H-16);
+    }
+  });
+  g.fillStyle = "#8f95a3"; g.textAlign = "right";
+  g.fillText(hi.toFixed(1), L-8, T+18);
+  g.fillText(lo.toFixed(1), L-8, H-B);
+  const line = (arr, color)=>{
+    g.strokeStyle = color; g.lineWidth = 2.5; g.beginPath();
+    let started = false;
+    arr.forEach((v,i)=>{
+      if(typeof v !== "number") return;
+      const px = X(i), py = Y(v);
+      started ? g.lineTo(px,py) : g.moveTo(px,py);
+      started = true;
+    });
+    g.stroke();
+  };
+  line(env, "#9a8352");
+  if(per.length) line(per, "#7fb98a");
+  const src = per.length ? per : env;
+  let bi = -1, bv = -Infinity;
+  src.forEach((v,i)=>{ if(typeof v === "number" && v > bv){ bv = v; bi = i; } });
+  if(bi >= 0){
+    g.strokeStyle = "#d9b36a"; g.lineWidth = 3;
+    g.beginPath(); g.arc(X(bi), Y(bv), 9, 0, Math.PI*2); g.stroke();
+  }
+  return true;
+}
+async function startScan(){
+  if(SCAN.running) return;
+  const note = $("scanNote");
+  try{
+    const rec = RECS.liuren;
+    if(!LAST_CANON || !rec || !rec.data || !rec.input){
+      note.textContent = "請先起盤，掃描以該盤之標的與參數為準。";
+      return;
+    }
+    const win = FRAMES.liuren.contentWindow, doc = FRAMES.liuren.contentDocument;
+    const cc = win.__aggOrigCC || win.computeCourse;
+    /* 太乙天時（三才同框）：取最近一次呼叫之函式與參數為模板 */
+    let tyWin = null, tyCall = null;
+    try{
+      tyWin = FRAMES.taiyi.contentWindow;
+      tyCall = RECS.taiyi && RECS.taiyi.lastCall;
+      if(!(tyWin && tyWin.__aggOrigTY && tyCall && tyWin.__aggOrigTY[tyCall.fn])) tyWin = null;
+    }catch(e){ tyWin = null; }
+    SCAN.running = true;
+    note.textContent = "準備模板…";
+    const savedData = rec.data, savedInput = rec.input;
+    const nmEl = doc.getElementById("nm");
+    const hadNM = !!(nmEl && nmEl.checked);
+    let tplPersonal = hadNM ? savedInput : null;
+    let tplEnv = hadNM ? null : savedInput;
+    if(hadNM){
+      nmEl.checked = false; nmEl.dispatchEvent(new win.Event("change"));
+      doc.getElementById("run").click();
+      await new Promise(r=>setTimeout(r,180));
+      tplEnv = rec.input;
+      nmEl.checked = true; nmEl.dispatchEvent(new win.Event("change"));
+      doc.getElementById("run").click();
+      await new Promise(r=>setTimeout(r,180));
+    }
+    rec.data = savedData; rec.input = savedInput;
+    const sysTxt = ($("optTaiyiSystem").selectedOptions[0]||{}).text || "";
+    const hourly = /時/.test(sysTxt);
+    const start = new Date(LAST_CANON.dtLocal);
+    const stepMs = (hourly ? 2 : 24) * 3600e3;
+    const total = hourly ? 92*12 : 366;
+    const samples = [];
+    for(let i=0;i<total;i++) samples.push(new Date(start.getTime() + i*stepMs));
+    const env = [], per = [], bands = [];
+    note.textContent = `掃描中 0/${total}…`;
+    let i = 0;
+    await new Promise(done=>{
+      (function step(){
+        const t0 = performance.now();
+        while(i < total && performance.now() - t0 < 30){
+          const t = samples[i];
+          try{ env.push(scanScoreOf(cc.call(win, scanInputAt(tplEnv, t)))); }catch(e){ env.push(null); }
+          if(tplPersonal){
+            try{ per.push(scanScoreOf(cc.call(win, scanInputAt(tplPersonal, t)))); }catch(e){ per.push(null); }
+          }
+          if(tyWin){
+            try{
+              const a = tyCall.args.slice();
+              a[0] = t.getFullYear(); a[1] = t.getMonth()+1; a[2] = t.getDate();
+              if(tyCall.fn === "computeHour"){ a[3] = t.getHours(); a[4] = t.getMinutes(); }
+              const r = tyWin.__aggOrigTY[tyCall.fn].apply(tyWin, a);
+              const cls = r && r.zhu && r.zhu.judge && r.zhu.judge.cls;
+              bands.push(cls === "jade" ? 1 : cls === "verm" ? -1 : 0);
+            }catch(e){ bands.push(0); }
+          }else bands.push(0);
+          i++;
+        }
+        note.textContent = `掃描中 ${i}/${total}…`;
+        i < total ? setTimeout(step, 0) : done();
+      })();
+    });
+    SCAN.running = false;
+    if(env.every(v=>v == null)){
+      note.textContent = "掃描完成但取不到分數——六壬 score 之數值形狀與預期不符，請貼原生 score 段落以對齊。";
+      report("warn","擇時掃描","六壬 score 非數值亦無 total 欄位，曲線無從繪起。","castphase");
+      return;
+    }
+    drawScanChart(samples, env, per, bands, hourly);
+    const src = per.length ? per : env;
+    const top = src.map((v,i)=>[v,i]).filter(([v])=>typeof v === "number")
+                   .sort((a,b)=>b[0]-a[0]).slice(0,3);
+    $("scanBest").innerHTML =
+      "最佳" + (hourly ? "三時" : "三日") + "：" +
+      top.map(([v,i])=>`<b>${scanFmt(samples[i], hourly)}</b>（${v}）`).join("　· ") +
+      "　｜　底色＝太乙天時" +
+      (per.length ? "　金線＝事境　綠線＝個人" : "　金線＝事境（未填命主，無個人線）");
+    note.textContent = "掃描完成。曲線與最佳點以" + (per.length ? "個人線" : "事境線") + "為準；改標的或命主後重起盤即自動重掃。";
+  }catch(err){
+    SCAN.running = false;
+    note.textContent = "掃描中斷：" + err.message;
+    report("bad","擇時掃描","掃描例外：" + err.message, "castphase");
+  }
+}
+$("scanBtn").onclick = startScan;
+
 /* ── 起盤 ── */
 $("castAll").onclick = ()=>{
   const autoFroze = !timeSet;
@@ -1460,6 +1649,8 @@ $("castAll").onclick = ()=>{
     renderTension();
     LAST_CANON = canon;
     buildCards(canon);
+    $("scanZone").open = true;
+    startScan();                       /* 起盤即自動掃描 */
     document.querySelectorAll(".frameBox[open]").forEach(fb=>fitFrame(fb.dataset.key));
   }, 1000);
 };
