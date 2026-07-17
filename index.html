@@ -101,6 +101,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 #scanBest td{padding:5px 8px;border-bottom:1px solid rgba(57,67,92,.45)}
 #scanBest td.zh{color:#7fa3d9}
 #scanBest td.ke{color:#c9a35f}
+#scanBest td.sh{font-size:12px;white-space:nowrap}
 .card details.frameBox summary{cursor:pointer;padding:7px 16px;font-size:12px;color:var(--gold-dim);letter-spacing:.1em}
 .card details.frameBox[open] summary{border-bottom:1px solid var(--line)}
 .card iframe{width:100%;height:620px;border:0;display:block;background:#fff}
@@ -229,8 +230,8 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 </details>
 
 <!-- ════════ 擇時掃描 ════════ -->
-<details id="scanZone" open>
-  <summary>擇時掃描 · 吉凶曲線（起盤即自動掃描）</summary>
+<details id="scanZone">
+  <summary>擇時掃描 · 吉凶曲線（起盤即自動掃描，點開查看）</summary>
   <div class="scanTop">
     <button id="scanBtn">重 掃</button>
     <span id="scanNote">起盤後自動掃描。範圍依太乙系統：時計掃未來三個月（逐時辰），其餘掃未來一年（逐日）。底部緞帶＝太乙主客（靛·利主／赭·利客，長短算判；勢均留空）；金線＝事境（六壬·不含年命，人人相同）；綠線＝個人（含年命行年，隨命主而異）。掃畢表列六壬 PR95 以上時點（依日期序），並逐筆疊合奇門該時最吉方。</span>
@@ -1421,6 +1422,24 @@ function scanFmt(t, hourly){
   return hourly ? `${t.getMonth()+1}/${t.getDate()} ${pad(t.getHours())}時`
                 : `${t.getFullYear()}/${t.getMonth()+1}/${t.getDate()}`;
 }
+/* 流日四化：呼叫錄取之紫微命盤物件本人的 horoscope 方法（iztro 生成器，跨年無礙），
+   以日為單位快取；命主未填或紫微未起盤則欄示「–」。 */
+let SIHUA_CACHE = {}, SIHUA_WARNED = false;
+function dailySihua(t){
+  try{
+    const ab = RECS.ziwei && RECS.ziwei.data;
+    if(!ab || typeof ab.horoscope !== "function") return null;
+    const key = `${t.getFullYear()}-${t.getMonth()+1}-${t.getDate()}`;
+    if(key in SIHUA_CACHE) return SIHUA_CACHE[key];
+    const h = ab.horoscope(new Date(t.getFullYear(), t.getMonth(), t.getDate(), 12, 0));
+    const m = h && h.daily && h.daily.mutagen;
+    const out = (Array.isArray(m) && m.length === 4)
+      ? `祿${m[0]}　權${m[1]}　科${m[2]}　<span style="color:var(--bad)">忌${m[3]}</span>`
+      : null;
+    SIHUA_CACHE[key] = out;
+    return out;
+  }catch(e){ return null; }
+}
 function qimenBest(doc){
   const cells = [...doc.querySelectorAll("#grid9 .cell")].filter(c=>!c.classList.contains("center-cell"));
   const rows = cells.map(c=>({
@@ -1620,14 +1639,21 @@ async function startScan(){
     let html = `圖例：緞帶＝太乙主客（<span style="color:#7fa3d9">靛·利主</span>／<span style="color:#c9a35f">赭·利客</span>）　金線＝事境` +
                (per.length ? "　綠線＝個人" : "（未填命主，無個人線）") +
                `　｜　入列門檻（PR95）：${thr}`;
-    html += `<table><tr><th>${hourly ? "時點" : "日期"}</th><th>六壬分</th><th>太乙</th><th>奇門最吉方</th></tr>`;
+    SIHUA_CACHE = {};
+    html += `<table><tr><th>${hourly ? "時點" : "日期"}</th><th>六壬分</th><th>太乙</th><th>四化（流日）</th><th>奇門最吉方</th></tr>`;
     picks.forEach(p=>{
       const b = bands[p.i];
       const tag = b > 0 ? '<td class="zh">主</td>' : b < 0 ? '<td class="ke">客</td>' : "<td>–</td>";
-      html += `<tr><td>${scanFmt(samples[p.i], hourly)}</td><td>${p.v}</td>${tag}<td id="qm_${p.i}">…</td></tr>`;
+      const sh = dailySihua(samples[p.i]);
+      html += `<tr><td>${scanFmt(samples[p.i], hourly)}</td><td>${p.v}</td>${tag}<td class="sh">${sh || "–"}</td><td id="qm_${p.i}">…</td></tr>`;
     });
     html += `</table>`;
     $("scanBest").innerHTML = html;
+    if(RECS.ziwei && RECS.ziwei.data && picks.length && !SIHUA_WARNED
+       && picks.every(p=>!dailySihua(samples[p.i]))){
+      SIHUA_WARNED = true;
+      report("warn","擇時掃描","紫微已起盤但取不到 horoscope().daily.mutagen——請貼 horoscope 回傳之頂層鍵名以對齊四化欄。","castphase");
+    }
     note.textContent = "曲線完成，奇門疊合中…";
     await qimenSweep(picks, samples, hourly);
   }catch(err){
@@ -1707,8 +1733,7 @@ $("castAll").onclick = ()=>{
     renderTension();
     LAST_CANON = canon;
     buildCards(canon);
-    $("scanZone").open = true;
-    startScan();                       /* 起盤即自動掃描 */
+    startScan();                       /* 起盤即自動掃描（區塊收合亦照算） */
     document.querySelectorAll(".frameBox[open]").forEach(fb=>fitFrame(fb.dataset.key));
   }, 1000);
 };
