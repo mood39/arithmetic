@@ -86,6 +86,16 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .cardRail{display:flex;gap:16px;overflow-x:auto;padding:10px 16px 20px;scroll-snap-type:x mandatory}
 .cardRail canvas{flex:0 0 23.8%;width:23.8%;height:auto;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.5);scroll-snap-align:center}
 @media (max-width:900px){ .cardRail canvas{flex:0 0 86%;width:86%} }
+
+/* ── 擇時掃描 ── */
+#scanZone{max-width:1180px;margin:0 auto 22px;border:1px solid var(--line);border-radius:6px;background:var(--ink2)}
+#scanZone summary{cursor:pointer;padding:10px 16px;font-size:14px;letter-spacing:.25em;color:var(--gold-dim)}
+#scanZone[open] summary{border-bottom:1px solid var(--line);color:var(--gold)}
+.scanTop{display:flex;align-items:flex-start;gap:14px;padding:12px 16px;flex-wrap:wrap}
+#scanNote{font-size:12px;color:var(--dim);max-width:62em;line-height:1.7}
+#scanCv{width:calc(100% - 32px);margin:0 16px 8px;border-radius:6px;background:var(--ink)}
+#scanBest{padding:0 16px 16px;font-size:13px;color:var(--paper)}
+#scanBest b{color:var(--gold)}
 .card details.frameBox summary{cursor:pointer;padding:7px 16px;font-size:12px;color:var(--gold-dim);letter-spacing:.1em}
 .card details.frameBox[open] summary{border-bottom:1px solid var(--line)}
 .card iframe{width:100%;height:620px;border:0;display:block;background:#fff}
@@ -211,6 +221,17 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
     <span id="cardNote">尚未起盤——起盤後自動生成四張卡牌。</span>
   </div>
   <div class="cardRail" id="cardRail"></div>
+</details>
+
+<!-- ════════ 擇時掃描 ════════ -->
+<details id="scanZone">
+  <summary>擇時掃描 · 吉凶曲線（起盤後可掃）</summary>
+  <div class="scanTop">
+    <button id="scanBtn">掃 描</button>
+    <span id="scanNote">範圍依太乙系統：時計掃未來三個月（逐時辰、標最佳時辰），其餘掃未來一年（逐日、標最佳日）。兩線同源六壬：事境線不含年命（人人相同），個人線含年命行年（隨命主而異）——起式命主填妥方有個人線。</span>
+  </div>
+  <canvas id="scanCv" style="display:none"></canvas>
+  <div id="scanBest"></div>
 </details>
 
 <!-- ════════ 天 · 地 · 人 · 決 ════════ -->
@@ -629,8 +650,10 @@ const ENGINES = [
     probeGlobals:["computeCourse"],
     patch(win, rec){
       const orig = win.computeCourse;
+      win.__aggOrigCC = orig;               /* 掃描走原始函式，不經錄取層 */
       win.computeCourse = function(input){
         const r = orig.call(this, input);
+        rec.input = input;                  /* 連引擎親手組裝之輸入一起錄，作掃描模板 */
         rec.data = r; rec.at = Date.now();
         return r;
       };
@@ -983,6 +1006,7 @@ function gatherCanon(){
 /* ── 印語與張力 ── */
 const STANCES = {};
 const VECS = {};   /* 各家最近一次節錄向量，供白話卡牌取材 */
+let LAST_CANON = null;   /* 最近一次起盤之正典輸入，供擇時掃描定起點 */
 function paintSeal(key, vec, nativeTxt){
   const vd = $("vd_"+key), fx = $("fx_"+key), nat = $("nat_"+key);
   if(nat && nativeTxt != null) nat.textContent = nativeTxt;
@@ -1434,6 +1458,7 @@ $("castAll").onclick = ()=>{
       paintSeal(k, vec, nats[k]);
     });
     renderTension();
+    LAST_CANON = canon;
     buildCards(canon);
     document.querySelectorAll(".frameBox[open]").forEach(fb=>fitFrame(fb.dataset.key));
   }, 1000);
