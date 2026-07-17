@@ -96,6 +96,11 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 #scanCv{width:calc(100% - 32px);margin:0 16px 8px;border-radius:6px;background:var(--ink)}
 #scanBest{padding:0 16px 16px;font-size:13px;color:var(--paper)}
 #scanBest b{color:var(--gold)}
+#scanBest table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+#scanBest th{color:var(--gold-dim);text-align:left;border-bottom:1px solid var(--line);padding:5px 8px;font-weight:400;letter-spacing:.1em}
+#scanBest td{padding:5px 8px;border-bottom:1px solid rgba(57,67,92,.45)}
+#scanBest td.zh{color:#7fa3d9}
+#scanBest td.ke{color:#c9a35f}
 .card details.frameBox summary{cursor:pointer;padding:7px 16px;font-size:12px;color:var(--gold-dim);letter-spacing:.1em}
 .card details.frameBox[open] summary{border-bottom:1px solid var(--line)}
 .card iframe{width:100%;height:620px;border:0;display:block;background:#fff}
@@ -228,7 +233,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   <summary>擇時掃描 · 吉凶曲線（起盤即自動掃描）</summary>
   <div class="scanTop">
     <button id="scanBtn">重 掃</button>
-    <span id="scanNote">起盤後自動掃描。範圍依太乙系統：時計掃未來三個月（逐時辰、標最佳時辰），其餘掃未來一年（逐日、標最佳日）。底色帶＝太乙天時（綠吉·紅凶）；金線＝事境（六壬·不含年命，人人相同）；綠線＝個人（含年命行年，隨命主而異，命主填妥方有）。</span>
+    <span id="scanNote">起盤後自動掃描。範圍依太乙系統：時計掃未來三個月（逐時辰），其餘掃未來一年（逐日）。底部緞帶＝太乙主客（靛·利主／赭·利客，長短算判；勢均留空）；金線＝事境（六壬·不含年命，人人相同）；綠線＝個人（含年命行年，隨命主而異）。掃畢表列六壬 PR95 以上時點（依日期序），並逐筆疊合奇門該時最吉方。</span>
   </div>
   <canvas id="scanCv" style="display:none"></canvas>
   <div id="scanBest"></div>
@@ -1395,10 +1400,10 @@ $("dlCards").onclick = async ()=>{
 };
 
 /* ═══════ 擇時掃描 ═══════
-   三才同框：太乙天時為底色帶（綠吉·紅凶），六壬雙線為前景。
-   事境線＝年命關（人人相同）、個人線＝年命開（隨命主異），同尺度可疊。
-   模板取自引擎親手之呼叫（六壬錄 input、太乙錄 args），逐點呼叫原始函式，不污染錄取。
-   時間預算制分批（每批 ≤30ms 即讓出畫面），任何例外明示於掃描區與報告區。 */
+   三才同框：底部緞帶＝太乙主客（長短算判：主長客短→利主、客長主短→利客、勢均留空），
+   前景＝六壬雙線（事境＝年命關、個人＝年命開）；表列 PR95 以上時點並逐筆疊合奇門最吉方。
+   模板取自引擎親手之呼叫（六壬錄 input、太乙錄 args、奇門逐筆駕駛其本人表單），
+   逐點呼叫原始函式不污染錄取；時間預算制分批，任何例外明示。 */
 const SCAN = {running:false};
 function scanScoreOf(r){
   const s = r && r.score;
@@ -1416,6 +1421,16 @@ function scanFmt(t, hourly){
   return hourly ? `${t.getMonth()+1}/${t.getDate()} ${pad(t.getHours())}時`
                 : `${t.getFullYear()}/${t.getMonth()+1}/${t.getDate()}`;
 }
+function qimenBest(doc){
+  const cells = [...doc.querySelectorAll("#grid9 .cell")].filter(c=>!c.classList.contains("center-cell"));
+  const rows = cells.map(c=>({
+    dir:  ((c.querySelector(".dir")  ||{}).textContent||"").trim(),
+    badge:((c.querySelector(".badge")||{}).textContent||"").trim(),
+  })).filter(r=>r.badge);
+  if(!rows.length) return null;
+  rows.sort((a,b)=>(GRADE_RANK[(b.badge||"")[0]]??-1)-(GRADE_RANK[(a.badge||"")[0]]??-1));
+  return rows[0];
+}
 function drawScanChart(samples, env, per, bands, hourly){
   const cv = $("scanCv");
   const W = 1200, H = 330;
@@ -1430,15 +1445,16 @@ function drawScanChart(samples, env, per, bands, hourly){
   const padV = (hi-lo)*0.08; lo -= padV; hi += padV;
   const X = i => L + (W-L-R) * i / (samples.length-1);
   const Y = v => T + (H-T-B) * (1 - (v-lo)/(hi-lo));
-  /* 太乙天時色帶（連續同值區段合併塗底） */
+  /* 主客緞帶：僅鋪圖底 18% 高，色可飽和而不擾線 */
   if(bands && bands.length){
+    const ribH = (H-T-B)*0.18, ribY = H-B-ribH;
     let i0 = 0;
     for(let i=1; i<=bands.length; i++){
       if(i === bands.length || bands[i] !== bands[i0]){
         const v = bands[i0];
         if(v !== 0){
-          g.fillStyle = v > 0 ? "rgba(111,165,131,.13)" : "rgba(187,70,50,.13)";
-          g.fillRect(X(i0), T, Math.max(X(i-1)-X(i0), 2), H-T-B);
+          g.fillStyle = v > 0 ? "rgba(59,91,140,.82)" : "rgba(140,106,59,.82)";
+          g.fillRect(X(i0), ribY, Math.max(X(Math.min(i, bands.length-1))-X(i0), 2), ribH);
         }
         i0 = i;
       }
@@ -1486,6 +1502,36 @@ function drawScanChart(samples, env, per, bands, hourly){
   }
   return true;
 }
+/* 奇門疊合：對短名單逐筆駕駛奇門本人表單，讀其親手渲染之九宮，畢而駛回正典 */
+async function qimenSweep(picks, samples, hourly){
+  let win, doc;
+  try{ win = FRAMES.qimen.contentWindow; doc = FRAMES.qimen.contentDocument; }
+  catch(e){ return; }
+  const saved = RECS.qimen.data;
+  const cap = Math.min(picks.length, 80);
+  for(let k=0; k<cap; k++){
+    const t = samples[picks[k].i];
+    const dt = `${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}T${pad(t.getHours())}:${pad(t.getMinutes())}`;
+    try{
+      doc.getElementById("autoDateTime").value = dt;
+      doc.getElementById("applyAuto").click();
+      await new Promise(r=>setTimeout(r, 320));
+      const b = qimenBest(doc);
+      const cell = $("qm_"+picks[k].i);
+      if(cell) cell.textContent = b ? `${b.dir}（${b.badge}）` : "—";
+    }catch(e){
+      const cell = $("qm_"+picks[k].i);
+      if(cell) cell.textContent = "—";
+    }
+    $("scanNote").textContent = `奇門疊合中 ${k+1}/${cap}…`;
+  }
+  try{                                     /* 駛回凍結之正典時間，盤面復原 */
+    doc.getElementById("autoDateTime").value = LAST_CANON.dtLocal;
+    doc.getElementById("applyAuto").click();
+  }catch(e){}
+  RECS.qimen.data = saved;
+  $("scanNote").textContent = "掃描完成。表列六壬 PR95 以上時點（依日期序）；太乙欄示主客（依己之位取捨），奇門欄為該時最吉方。";
+}
 async function startScan(){
   if(SCAN.running) return;
   const note = $("scanNote");
@@ -1497,7 +1543,6 @@ async function startScan(){
     }
     const win = FRAMES.liuren.contentWindow, doc = FRAMES.liuren.contentDocument;
     const cc = win.__aggOrigCC || win.computeCourse;
-    /* 太乙天時（三才同框）：取最近一次呼叫之函式與參數為模板 */
     let tyWin = null, tyCall = null;
     try{
       tyWin = FRAMES.taiyi.contentWindow;
@@ -1546,8 +1591,11 @@ async function startScan(){
               a[0] = t.getFullYear(); a[1] = t.getMonth()+1; a[2] = t.getDate();
               if(tyCall.fn === "computeHour"){ a[3] = t.getHours(); a[4] = t.getMinutes(); }
               const r = tyWin.__aggOrigTY[tyCall.fn].apply(tyWin, a);
-              const cls = r && r.zhu && r.zhu.judge && r.zhu.judge.cls;
-              bands.push(cls === "jade" ? 1 : cls === "verm" ? -1 : 0);
+              const zt = (r && r.zhu && r.zhu.judge && r.zhu.judge.t) || "";
+              const kt = (r && r.ke  && r.ke.judge  && r.ke.judge.t)  || "";
+              const zL = zt.includes("長"), zS = zt.includes("短");
+              const kL = kt.includes("長"), kS = kt.includes("短");
+              bands.push(zL && kS ? 1 : kL && zS ? -1 : 0);   /* 1=利主 -1=利客 0=均/未決 */
             }catch(e){ bands.push(0); }
           }else bands.push(0);
           i++;
@@ -1563,15 +1611,25 @@ async function startScan(){
       return;
     }
     drawScanChart(samples, env, per, bands, hourly);
+    /* PR95 篩選（於掃描樣本內取分位），依日期序表列 */
     const src = per.length ? per : env;
-    const top = src.map((v,i)=>[v,i]).filter(([v])=>typeof v === "number")
-                   .sort((a,b)=>b[0]-a[0]).slice(0,3);
-    $("scanBest").innerHTML =
-      "最佳" + (hourly ? "三時" : "三日") + "：" +
-      top.map(([v,i])=>`<b>${scanFmt(samples[i], hourly)}</b>（${v}）`).join("　· ") +
-      "　｜　底色＝太乙天時" +
-      (per.length ? "　金線＝事境　綠線＝個人" : "　金線＝事境（未填命主，無個人線）");
-    note.textContent = "掃描完成。曲線與最佳點以" + (per.length ? "個人線" : "事境線") + "為準；改標的或命主後重起盤即自動重掃。";
+    const nums = src.filter(v=>typeof v === "number").slice().sort((a,b)=>a-b);
+    const thr = nums[Math.min(Math.floor(nums.length*0.95), nums.length-1)];
+    const picks = [];
+    src.forEach((v,i)=>{ if(typeof v === "number" && v >= thr) picks.push({i, v}); });
+    let html = `圖例：緞帶＝太乙主客（<span style="color:#7fa3d9">靛·利主</span>／<span style="color:#c9a35f">赭·利客</span>）　金線＝事境` +
+               (per.length ? "　綠線＝個人" : "（未填命主，無個人線）") +
+               `　｜　入列門檻（PR95）：${thr}`;
+    html += `<table><tr><th>${hourly ? "時點" : "日期"}</th><th>六壬分</th><th>太乙</th><th>奇門最吉方</th></tr>`;
+    picks.forEach(p=>{
+      const b = bands[p.i];
+      const tag = b > 0 ? '<td class="zh">主</td>' : b < 0 ? '<td class="ke">客</td>' : "<td>–</td>";
+      html += `<tr><td>${scanFmt(samples[p.i], hourly)}</td><td>${p.v}</td>${tag}<td id="qm_${p.i}">…</td></tr>`;
+    });
+    html += `</table>`;
+    $("scanBest").innerHTML = html;
+    note.textContent = "曲線完成，奇門疊合中…";
+    await qimenSweep(picks, samples, hourly);
   }catch(err){
     SCAN.running = false;
     note.textContent = "掃描中斷：" + err.message;
