@@ -1127,7 +1127,29 @@ function toPlain(t){
   for(const [k,v] of PLAIN_RE)  s = s.replace(k, v);
   return s;
 }
-function cardDataAll(){
+/* 盤註：凍結/指定時間 · 該家排法（簡記）· 標的（兩層則並記） */
+function cardMeta(k, canon){
+  const t = canon.dtLocal.slice(0,10).replace(/-/g,"/") + " " + canon.dtLocal.slice(11);
+  const parts = [t];
+  if(k === "taiyi"){
+    const sysTxt = ($("optTaiyiSystem").selectedOptions[0]||{}).text || "";
+    const schTxt = ($("optTaiyiSchool").selectedOptions[0]||{}).text || "";
+    const sch = schTxt.includes("金鏡") ? "金鏡" : schTxt.includes("淘金") ? "淘金" : schTxt.slice(0,2);
+    if(sysTxt) parts.push(sysTxt.slice(0,2) + sch);
+  }else if(k === "qimen"){
+    parts.push(canon.qimenMethod === "fly" ? "飛盤" : "轉盤");
+  }else if(k === "liuyao"){
+    parts.push(canon.liuyaoMode === "mY" ? "蓍法" : "錢法");
+  }
+  let subj = canon.subject;
+  if(k === "liuyao"){
+    const w = $("lySubWrap"), sv = $("canonLySub").value;
+    if(w.style.display !== "none" && sv && sv !== canon.subject) subj += "、" + sv;
+  }
+  parts.push("標的：" + subj);
+  return parts;
+}
+function cardDataAll(canon){
   const defs = [
     {k:"taiyi",  seal:"天", eng:"太乙神數"},
     {k:"qimen",  seal:"地", eng:"奇門遁甲"},
@@ -1135,26 +1157,27 @@ function cardDataAll(){
     {k:"liuyao", seal:"決", eng:"納甲六爻"},
   ];
   return defs.map(d=>{
+    const base = {...d, meta: cardMeta(d.k, canon)};
     const v = VECS[d.k];
-    if(!v) return {...d, head:"（本輪無錄取）", sub:"", body:"", stance:"平"};
+    if(!v) return {...base, head:"（本輪無錄取）", sub:"", body:"", stance:"平"};
     if(d.k === "taiyi"){
       const strs = (v.factors||[]).filter(f=>typeof f === "string");
       const pats = strs.filter(f=>/^(迫|擊|囚|格|關|掩)[:：]/.test(f));
       const body = (pats.length ? pats : strs.slice(0,1)).map(toPlain).join("\n");
-      return {...d, head:v.verdict, sub:"", body, stance:v.stance};
+      return {...base, head:v.verdict, sub:"", body, stance:v.stance};
     }
     if(d.k === "qimen"){
-      return {...d, head:v.verdict, sub:"",
+      return {...base, head:v.verdict, sub:"",
               body:(v.factors||[]).filter(f=>typeof f === "string").join("\n"), stance:v.stance};
     }
     if(d.k === "liuren"){
       const o = (v.factors||[]).find(f=>f && typeof f === "object" && f.head);
-      return {...d, head:v.verdict, sub:o ? o.head : "",
+      return {...base, head:v.verdict, sub:o ? o.head : "",
               body:o ? toPlain((o.body||[]).join("\n")) : "", stance:v.stance};
     }
     const full = (v.factors||[]).filter(f=>typeof f === "string").join("\n");
     const m = full.match(/^(此課問[^，。\n]*)[，。]?\s*([\s\S]*)$/);
-    return {...d, head: m ? toPlain(m[1]) : (v.verdict||"—"), sub:"",
+    return {...base, head: m ? toPlain(m[1]) : (v.verdict||"—"), sub:"",
             body: toPlain(m ? m[2] : full), stance:v.stance};
   });
 }
@@ -1196,7 +1219,7 @@ function cardCenter(x, W, t, y, f, color, ls){
 }
 /* 底部浮水印：天圓 · 地方九宮 · 人三角 · 決三爻（單色淡印，四張各異） */
 function drawWatermark(x, W, H, seal){
-  const cx = W/2, cy = H - 430, s = 190;
+  const cx = W/2, cy = H - 500, s = 190;
   x.save();
   x.globalAlpha = 0.11;
   x.lineWidth = 14;
@@ -1288,7 +1311,7 @@ function drawCard(cv, d){
     bodyTop += 66;
   }
   /* 內文：自動縮字避免溢框 */
-  const left = 132, maxW = W - 264, bottom = H - 200;
+  const left = 132, maxW = W - 264, bottom = H - 272;
   let fs = 38, lines;
   for(;;){
     x.font = `400 ${fs}px ${CARD_SERIF}`;
@@ -1299,16 +1322,27 @@ function drawCard(cv, d){
   x.fillStyle = "#3a332a"; x.textAlign = "left";
   const lh = fs * 1.62;
   lines.forEach((ln,i)=>x.fillText(ln, left, bodyTop + (i+0.8)*lh));
+  /* 盤註：時間 · 排法 · 標的（底部橫線上方，過寬折兩行） */
+  if(d.meta && d.meta.length){
+    x.font = `400 27px ${CARD_SERIF}`;
+    const full = d.meta.join(" · ");
+    if(x.measureText(full).width <= W - 240){
+      cardCenter(x, W, full, H-192, `400 27px ${CARD_SERIF}`, "#6b5f47");
+    }else{
+      cardCenter(x, W, d.meta.slice(0,-1).join(" · "), H-226, `400 27px ${CARD_SERIF}`, "#6b5f47");
+      cardCenter(x, W, d.meta[d.meta.length-1], H-188, `400 27px ${CARD_SERIF}`, "#6b5f47");
+    }
+  }
   /* 底標 */
   x.strokeStyle = "#b49b5f"; x.lineWidth = 2;
   x.beginPath(); x.moveTo(210,H-168); x.lineTo(W-210,H-168); x.stroke();
   cardCenter(x, W, d.eng, H-102, `700 46px ${CARD_SERIF}`, "#4a3d22", 10);
 }
 let CARDS = [];
-function buildCards(){
+function buildCards(canon){
   const rail = $("cardRail");
   rail.innerHTML = ""; CARDS = [];
-  cardDataAll().forEach(d=>{
+  cardDataAll(canon).forEach(d=>{
     const cv = document.createElement("canvas");
     drawCard(cv, d);
     rail.appendChild(cv);
@@ -1408,7 +1442,7 @@ $("castAll").onclick = ()=>{
       paintSeal(k, vec, nats[k]);
     });
     renderTension();
-    buildCards();
+    buildCards(canon);
     document.querySelectorAll(".frameBox[open]").forEach(fb=>fitFrame(fb.dataset.key));
   }, 1000);
 };
