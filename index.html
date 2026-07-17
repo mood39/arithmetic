@@ -1127,10 +1127,10 @@ function toPlain(t){
   for(const [k,v] of PLAIN_RE)  s = s.replace(k, v);
   return s;
 }
-/* 盤註：凍結/指定時間 · 該家排法（簡記）· 標的（兩層則並記） */
+/* 盤註：第一行為凍結/指定時間；第二行為該家排法（簡記）· 標的（兩層則並記） */
 function cardMeta(k, canon){
   const t = canon.dtLocal.slice(0,10).replace(/-/g,"/") + " " + canon.dtLocal.slice(11);
-  const parts = [t];
+  const parts = [];
   if(k === "taiyi"){
     const sysTxt = ($("optTaiyiSystem").selectedOptions[0]||{}).text || "";
     const schTxt = ($("optTaiyiSchool").selectedOptions[0]||{}).text || "";
@@ -1142,12 +1142,10 @@ function cardMeta(k, canon){
     parts.push(canon.liuyaoMode === "mY" ? "蓍法" : "錢法");
   }
   let subj = canon.subject;
-  if(k === "liuyao"){
-    const w = $("lySubWrap"), sv = $("canonLySub").value;
-    if(w.style.display !== "none" && sv && sv !== canon.subject) subj += "、" + sv;
-  }
-  parts.push("標的：" + subj);
-  return parts;
+  const w = $("lySubWrap"), sv = $("canonLySub").value;
+  if(w.style.display !== "none" && sv && sv !== canon.subject) subj += "、" + sv;
+  parts.push(subj);
+  return {time:t, line:parts.join(" · ")};
 }
 function cardDataAll(canon){
   const defs = [
@@ -1322,16 +1320,10 @@ function drawCard(cv, d){
   x.fillStyle = "#3a332a"; x.textAlign = "left";
   const lh = fs * 1.62;
   lines.forEach((ln,i)=>x.fillText(ln, left, bodyTop + (i+0.8)*lh));
-  /* 盤註：時間 · 排法 · 標的（底部橫線上方，過寬折兩行） */
-  if(d.meta && d.meta.length){
-    x.font = `400 27px ${CARD_SERIF}`;
-    const full = d.meta.join(" · ");
-    if(x.measureText(full).width <= W - 240){
-      cardCenter(x, W, full, H-192, `400 27px ${CARD_SERIF}`, "#6b5f47");
-    }else{
-      cardCenter(x, W, d.meta.slice(0,-1).join(" · "), H-226, `400 27px ${CARD_SERIF}`, "#6b5f47");
-      cardCenter(x, W, d.meta[d.meta.length-1], H-188, `400 27px ${CARD_SERIF}`, "#6b5f47");
-    }
+  /* 盤註：時間獨立一行，其下為排法 · 標的 */
+  if(d.meta){
+    cardCenter(x, W, d.meta.time, H-226, `400 27px ${CARD_SERIF}`, "#6b5f47");
+    cardCenter(x, W, d.meta.line, H-188, `400 27px ${CARD_SERIF}`, "#6b5f47");
   }
   /* 底標 */
   x.strokeStyle = "#b49b5f"; x.lineWidth = 2;
