@@ -102,7 +102,8 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 #scanBest td.zh{color:#7fa3d9}
 #scanBest td.ke{color:#c9a35f}
 #scanBest td.sh{font-size:12px;white-space:nowrap}
-#scanBest td.sh .shM{display:inline-block;border:1px solid var(--line);border-radius:3px;padding:0 6px;margin-top:3px;color:var(--dim);font-size:11px}
+#scanBest td.sh .shY{margin-top:2px;color:var(--dim)}
+#scanBest td.sh .hit{font-weight:700;text-decoration:underline;text-underline-offset:2px}
 .card details.frameBox summary{cursor:pointer;padding:7px 16px;font-size:12px;color:var(--gold-dim);letter-spacing:.1em}
 .card details.frameBox[open] summary{border-bottom:1px solid var(--line)}
 .card iframe{width:100%;height:620px;border:0;display:block;background:#fff}
@@ -1423,35 +1424,44 @@ function scanFmt(t, hourly){
   return hourly ? `${t.getMonth()+1}/${t.getDate()} ${pad(t.getHours())}時`
                 : `${t.getFullYear()}/${t.getMonth()+1}/${t.getDate()}`;
 }
-/* 流日／流月四化：呼叫錄取之紫微命盤物件本人的 horoscope 方法（iztro 生成器，跨年無礙），
-   以日為單位快取；取不到時自診鍵名入警示，無需使用者貼資料。 */
+/* 四化欄：時計→流日、年計→流月（單層，合掃描粒度）；
+   該層四化與流年四化有同星（不限化類）即為對齊，加列流年行，同星粗體底線上下對照。
+   呼叫錄取之紫微命盤物件本人的 horoscope（傳日期字串跨域安全），日快取；失敗自診。 */
 let SIHUA_CACHE = {}, SIHUA_WARNED = false, SIHUA_DIAG = "";
-function fmtMut(m){
-  return `祿${m[0]}　權${m[1]}　科${m[2]}　<span style="color:var(--bad)">忌${m[3]}</span>`;
+function fmtMut(m, shared){
+  const piece = (lab, star, isJi)=>{
+    const inner = (shared && shared.has(star)) ? `<span class="hit">${star}</span>` : star;
+    return isJi ? `<span style="color:var(--bad)">忌${inner}</span>` : `${lab}${inner}`;
+  };
+  return [piece("祿",m[0]), piece("權",m[1]), piece("科",m[2]), piece("",m[3],true)].join("　");
 }
-function dailySihua(t){
+function sihuaCell(t, hourly){
   const ab = RECS.ziwei && RECS.ziwei.data;
   if(!ab) return null;
   if(typeof ab.horoscope !== "function"){
     if(!SIHUA_DIAG) SIHUA_DIAG = "錄取物件無 horoscope 方法；其鍵：" + Object.keys(ab).slice(0,14).join(", ");
     return null;
   }
-  const key = `${t.getFullYear()}-${t.getMonth()+1}-${t.getDate()}`;
+  const dstr = `${t.getFullYear()}-${t.getMonth()+1}-${t.getDate()}`;
+  const key = (hourly ? "h" : "m") + dstr;
   if(key in SIHUA_CACHE) return SIHUA_CACHE[key];
   let out = null;
   try{
-    const h = ab.horoscope(key);   /* 傳日期字串——父頁之 Date 於 iframe 領域內 instanceof 判定失敗，字串跨域無恙 */
-    const md = h && h.daily && h.daily.mutagen;
-    const mm = h && h.monthly && h.monthly.mutagen;
-    if(Array.isArray(md) && md.length === 4){
-      const dgz = ((h.daily.heavenlyStem || "") + (h.daily.earthlyBranch || ""));
-      out = (dgz ? dgz + "日　" : "") + fmtMut(md);
-      if(Array.isArray(mm) && mm.length === 4){
-        const mgz = ((h.monthly.heavenlyStem || "") + (h.monthly.earthlyBranch || ""));
-        out += `<div class="shM">${mgz ? mgz + "月" : "月"}　${fmtMut(mm)}</div>`;
+    const h = ab.horoscope(dstr);   /* 傳日期字串——父頁之 Date 於 iframe 領域內 instanceof 判定失敗 */
+    const prim = hourly ? (h && h.daily) : (h && h.monthly);
+    const yr = h && h.yearly;
+    const pm = prim && prim.mutagen;
+    const ym = yr && yr.mutagen;
+    if(Array.isArray(pm) && pm.length === 4){
+      const shared = new Set(Array.isArray(ym) ? ym.filter(s=>pm.includes(s)) : []);
+      const pgz = ((prim.heavenlyStem || "") + (prim.earthlyBranch || ""));
+      out = `${pgz}${hourly ? "日" : "月"}　${fmtMut(pm, shared)}`;
+      if(shared.size && Array.isArray(ym) && ym.length === 4){
+        const ygz = ((yr.heavenlyStem || "") + (yr.earthlyBranch || ""));
+        out += `<div class="shY">${ygz}年　${fmtMut(ym, shared)}</div>`;
       }
     }else if(h && !SIHUA_DIAG){
-      SIHUA_DIAG = `horoscope 鍵：${Object.keys(h).join(", ")}；daily 鍵：${h.daily ? Object.keys(h.daily).join(", ") : "（無 daily）"}`;
+      SIHUA_DIAG = `horoscope 鍵：${Object.keys(h).join(", ")}；${hourly?"daily":"monthly"} 鍵：${prim ? Object.keys(prim).join(", ") : "（無）"}`;
     }
   }catch(e){
     if(!SIHUA_DIAG) SIHUA_DIAG = "horoscope 例外：" + ((e && e.message) || e);
@@ -1669,13 +1679,13 @@ async function startScan(){
     picks.forEach(p=>{
       const b = bands[p.i];
       const tag = b > 0 ? '<td class="zh">主</td>' : b < 0 ? '<td class="ke">客</td>' : "<td>–</td>";
-      const sh = dailySihua(samples[p.i]);
+      const sh = sihuaCell(samples[p.i], hourly);
       html += `<tr><td>${scanFmt(samples[p.i], hourly)}</td><td>${p.v}</td>${tag}<td class="sh">${sh || "–"}</td><td id="qm_${p.i}">…</td></tr>`;
     });
     html += `</table>`;
     $("scanBest").innerHTML = html;
     if(RECS.ziwei && RECS.ziwei.data && picks.length && !SIHUA_WARNED
-       && picks.every(p=>!dailySihua(samples[p.i]))){
+       && picks.every(p=>!sihuaCell(samples[p.i], hourly))){
       SIHUA_WARNED = true;
       report("warn","擇時掃描","四化欄未取得。" + (SIHUA_DIAG ? "自診——" + SIHUA_DIAG : "horoscope 呼叫未成功。") + "　截圖此行即可對齊。","castphase");
       $("scanBest").insertAdjacentHTML("beforeend",
