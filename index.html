@@ -1444,9 +1444,12 @@ function dailySihua(t){
     const md = h && h.daily && h.daily.mutagen;
     const mm = h && h.monthly && h.monthly.mutagen;
     if(Array.isArray(md) && md.length === 4){
-      out = fmtMut(md);
-      if(Array.isArray(mm) && mm.length === 4)
-        out += `<div class="shM">月　${fmtMut(mm)}</div>`;
+      const dgz = ((h.daily.heavenlyStem || "") + (h.daily.earthlyBranch || ""));
+      out = (dgz ? dgz + "日　" : "") + fmtMut(md);
+      if(Array.isArray(mm) && mm.length === 4){
+        const mgz = ((h.monthly.heavenlyStem || "") + (h.monthly.earthlyBranch || ""));
+        out += `<div class="shM">${mgz ? mgz + "月" : "月"}　${fmtMut(mm)}</div>`;
+      }
     }else if(h && !SIHUA_DIAG){
       SIHUA_DIAG = `horoscope 鍵：${Object.keys(h).join(", ")}；daily 鍵：${h.daily ? Object.keys(h.daily).join(", ") : "（無 daily）"}`;
     }
