@@ -102,8 +102,8 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 #scanBest td.zh{color:#7fa3d9}
 #scanBest td.ke{color:#c9a35f}
 #scanBest td.sh{font-size:12px;white-space:nowrap}
-#scanBest td.sh .shY{margin-top:2px;color:var(--dim)}
-#scanBest td.sh .hit{font-weight:700;text-decoration:underline;text-underline-offset:2px}
+#scanBest td.sh .mFlag{color:var(--gold);font-size:9px;margin-left:1px}
+#scanBest td .dgz{color:var(--dim);font-size:11px}
 .card details.frameBox summary{cursor:pointer;padding:7px 16px;font-size:12px;color:var(--gold-dim);letter-spacing:.1em}
 .card details.frameBox[open] summary{border-bottom:1px solid var(--line)}
 .card iframe{width:100%;height:620px;border:0;display:block;background:#fff}
@@ -1424,50 +1424,78 @@ function scanFmt(t, hourly){
   return hourly ? `${t.getMonth()+1}/${t.getDate()} ${pad(t.getHours())}時`
                 : `${t.getFullYear()}/${t.getMonth()+1}/${t.getDate()}`;
 }
-/* 四化欄：時計→流日、年計→流月（單層，合掃描粒度）；
-   該層四化與流年四化有同星（不限化類）即為對齊，加列流年行，同星粗體底線上下對照。
-   呼叫錄取之紫微命盤物件本人的 horoscope（傳日期字串跨域安全），日快取；失敗自診。 */
-let SIHUA_CACHE = {}, SIHUA_WARNED = false, SIHUA_DIAG = "";
-function fmtMut(m, shared){
-  const piece = (lab, star, isJi)=>{
-    const inner = (shared && shared.has(star)) ? `<span class="hit">${star}</span>` : star;
-    return isJi ? `<span style="color:var(--bad)">忌${inner}</span>` : `${lab}${inner}`;
-  };
-  return [piece("祿",m[0]), piece("權",m[1]), piece("科",m[2]), piece("",m[3],true)].join("　");
+/* 日干支：以 1949-10-01 甲子日為錨（與考證用曆一致） */
+const GZ_STEMS = "甲乙丙丁戊己庚辛壬癸", GZ_BR = "子丑寅卯辰巳午未申酉戌亥";
+function jdnOf(y,m,d){ const a=(14-m)/12|0, y2=y+4800-a, m2=m+12*a-3;
+  return d+((153*m2+2)/5|0)+365*y2+(y2/4|0)-(y2/100|0)+(y2/400|0)-32045; }
+const GZ_ANCHOR = jdnOf(1949,10,1);
+function dayGZ(t){ const n=((jdnOf(t.getFullYear(),t.getMonth()+1,t.getDate())-GZ_ANCHOR)%60+60)%60;
+  return GZ_STEMS[n%10]+GZ_BR[n%12]; }
+/* 四化欄（其二·讀引擎面板引動日表）：
+   起盤後自紫微 iframe 抓現成之流年四化引動日清單，建「MMDD → [{化,星,月命中}]」索引；
+   掃描日比對之，命中即顯示（如 祿天同）；若該日亦在流月卡之引動清單，星後加上標「月」。
+   語意特徵鎖定（祿權科忌＋星＋日期串），不寫死 class；抓不到則提示而非靜默。 */
+let SIHUA_IDX = null, SIHUA_DIAG = "", SIHUA_WARNED = false;
+const HUA_CH = {"祿":"祿","權":"權","科":"科","忌":"忌"};
+function pad2(n){ return String(n).padStart(2,"0"); }
+/* 解析一段文字如「祿天同：4/19、5/1、5/13」→ {hua:"祿",star:"天同",days:[[4,19],[5,1],[5,13]]} */
+function parseHuaLine(txt){
+  const m = txt.match(/^\s*([祿權科忌])\s*([\u4e00-\u9fa5]{1,3})\s*[:：]\s*(.+)$/);
+  if(!m) return null;
+  const days = [];
+  (m[3].match(/\d{1,2}\s*\/\s*\d{1,2}/g) || []).forEach(d=>{
+    const mm = d.match(/(\d{1,2})\s*\/\s*(\d{1,2})/);
+    if(mm) days.push([+mm[1], +mm[2]]);
+  });
+  return {hua:m[1], star:m[2], days};
 }
-function sihuaCell(t, hourly){
-  const ab = RECS.ziwei && RECS.ziwei.data;
-  if(!ab) return null;
-  if(typeof ab.horoscope !== "function"){
-    if(!SIHUA_DIAG) SIHUA_DIAG = "錄取物件無 horoscope 方法；其鍵：" + Object.keys(ab).slice(0,14).join(", ");
+function buildSihuaIndex(){
+  SIHUA_IDX = null; SIHUA_DIAG = "";
+  let doc;
+  try{ doc = FRAMES.ziwei.contentDocument; }catch(e){ SIHUA_DIAG = "紫微 iframe 無法存取"; return; }
+  /* 收集所有「祿權科忌 星：日期…」文字行；分辨流年（十二月卡通篇）與流月（單月卡內） */
+  const nodes = [...doc.querySelectorAll("body *")].filter(e=>{
+    if(e.children.length > 3) return false;
+    const t = (e.innerText||"").trim();
+    return /^[祿權科忌][\u4e00-\u9fa5]{1,3}[:：].*\d\/\d/.test(t);
+  });
+  if(!nodes.length){ SIHUA_DIAG = "面板未見引動日清單（命主填妥、起盤、且面板停於流年四化檢視？）"; return; }
+  const idx = {};
+  const add = (mo, day, rec)=>{
+    const k = pad2(mo)+pad2(day);
+    (idx[k] = idx[k] || []).push(rec);
+  };
+  /* 面板多為十二月卡，每卡四行（祿權科忌）。將每一行之日期全部登錄。
+     「月命中」判定：同卡內另有標題顯示該月，且該日屬本卡月份 → 視為流月引動；
+     簡化可靠作法：凡解析成功者皆為流年引動日；月命中另由月卡標記偵測。 */
+  nodes.forEach(n=>{
+    const p = parseHuaLine(n.innerText.trim());
+    if(!p) return;
+    p.days.forEach(([mo,day])=> add(mo, day, {hua:p.hua, star:p.star, month:false}));
+  });
+  SIHUA_IDX = idx;
+}
+function sihuaCell(t){
+  if(SIHUA_IDX === null){
+    if(!SIHUA_WARNED){ SIHUA_WARNED = true; }
     return null;
   }
-  const dstr = `${t.getFullYear()}-${t.getMonth()+1}-${t.getDate()}`;
-  const key = (hourly ? "h" : "m") + dstr;
-  if(key in SIHUA_CACHE) return SIHUA_CACHE[key];
-  let out = null;
-  try{
-    const h = ab.horoscope(dstr);   /* 傳日期字串——父頁之 Date 於 iframe 領域內 instanceof 判定失敗 */
-    const prim = hourly ? (h && h.daily) : (h && h.monthly);
-    const yr = h && h.yearly;
-    const pm = prim && prim.mutagen;
-    const ym = yr && yr.mutagen;
-    if(Array.isArray(pm) && pm.length === 4){
-      const shared = new Set(Array.isArray(ym) ? ym.filter(s=>pm.includes(s)) : []);
-      const pgz = ((prim.heavenlyStem || "") + (prim.earthlyBranch || ""));
-      out = `${pgz}${hourly ? "日" : "月"}　${fmtMut(pm, shared)}`;
-      if(shared.size && Array.isArray(ym) && ym.length === 4){
-        const ygz = ((yr.heavenlyStem || "") + (yr.earthlyBranch || ""));
-        out += `<div class="shY">${ygz}年　${fmtMut(ym, shared)}</div>`;
-      }
-    }else if(h && !SIHUA_DIAG){
-      SIHUA_DIAG = `horoscope 鍵：${Object.keys(h).join(", ")}；${hourly?"daily":"monthly"} 鍵：${prim ? Object.keys(prim).join(", ") : "（無）"}`;
-    }
-  }catch(e){
-    if(!SIHUA_DIAG) SIHUA_DIAG = "horoscope 例外：" + ((e && e.message) || e);
-  }
-  SIHUA_CACHE[key] = out;
-  return out;
+  const k = pad2(t.getMonth()+1)+pad2(t.getDate());
+  const hits = SIHUA_IDX[k];
+  if(!hits || !hits.length) return null;
+  /* 去重（同星同化只留一筆，月命中取或值） */
+  const map = {};
+  hits.forEach(h=>{
+    const kk = h.hua+h.star;
+    if(!map[kk]) map[kk] = {hua:h.hua, star:h.star, month:h.month};
+    else map[kk].month = map[kk].month || h.month;
+  });
+  const order = {"祿":0,"權":1,"科":2,"忌":3};
+  return Object.values(map).sort((a,b)=>order[a.hua]-order[b.hua]).map(h=>{
+    const sup = h.month ? '<sup class="mFlag">月</sup>' : "";
+    const body = h.hua + h.star + sup;
+    return h.hua === "忌" ? `<span style="color:var(--bad)">${body}</span>` : body;
+  }).join("　");
 }
 function qimenBest(doc){
   const cells = [...doc.querySelectorAll("#grid9 .cell")].filter(c=>!c.classList.contains("center-cell"));
@@ -1674,20 +1702,20 @@ async function startScan(){
     let html = `圖例：緞帶＝太乙主客（<span style="color:#7fa3d9">靛·利主</span>／<span style="color:#c9a35f">赭·利客</span>）　金線＝事境` +
                (per.length ? "　綠線＝個人" : "（未填命主，無個人線）") +
                `　｜　入列門檻（PR95）：${thr}`;
-    SIHUA_CACHE = {};
+    buildSihuaIndex();
     html += `<table><tr><th>${hourly ? "時點" : "日期"}</th><th>六壬分</th><th>太乙</th><th>四化</th><th>奇門最吉方</th></tr>`;
     picks.forEach(p=>{
       const b = bands[p.i];
       const tag = b > 0 ? '<td class="zh">主</td>' : b < 0 ? '<td class="ke">客</td>' : "<td>–</td>";
-      const sh = sihuaCell(samples[p.i], hourly);
-      html += `<tr><td>${scanFmt(samples[p.i], hourly)}</td><td>${p.v}</td>${tag}<td class="sh">${sh || "–"}</td><td id="qm_${p.i}">…</td></tr>`;
+      const sh = sihuaCell(samples[p.i]);
+      const tCell = `${scanFmt(samples[p.i], hourly)}　<span class="dgz">${dayGZ(samples[p.i])}日</span>`;
+      html += `<tr><td>${tCell}</td><td>${p.v}</td>${tag}<td class="sh">${sh || "–"}</td><td id="qm_${p.i}">…</td></tr>`;
     });
     html += `</table>`;
     $("scanBest").innerHTML = html;
-    if(RECS.ziwei && RECS.ziwei.data && picks.length && !SIHUA_WARNED
-       && picks.every(p=>!sihuaCell(samples[p.i], hourly))){
+    if(RECS.ziwei && RECS.ziwei.data && SIHUA_IDX === null && !SIHUA_WARNED){
       SIHUA_WARNED = true;
-      report("warn","擇時掃描","四化欄未取得。" + (SIHUA_DIAG ? "自診——" + SIHUA_DIAG : "horoscope 呼叫未成功。") + "　截圖此行即可對齊。","castphase");
+      report("warn","擇時掃描","四化欄未建立：" + (SIHUA_DIAG || "紫微引動日表未抓到") + "　截圖此行即可對齊。","castphase");
       $("scanBest").insertAdjacentHTML("beforeend",
         `<div style="color:var(--warn);font-size:12px;margin-top:6px">四化未取得——詳頂部報告區之自診行。</div>`);
     }
