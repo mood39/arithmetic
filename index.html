@@ -236,7 +236,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   <summary>擇時掃描 · 吉凶曲線（起盤即自動掃描，點開查看）</summary>
   <div class="scanTop">
     <button id="scanBtn">重 掃</button>
-    <span id="scanNote">起盤後自動掃描。範圍依太乙系統：時計掃未來三個月（逐時辰），其餘掃未來一年（逐日）。底部緞帶＝太乙主客（靛·利主／赭·利客，長短算判；勢均留空）；金線＝事境（六壬·不含年命，人人相同）；綠線＝個人（含年命行年，隨命主而異）。掃畢表列六壬 PR95 以上時點（依日期序），並逐筆疊合奇門該時最吉方。</span>
+    <span id="scanNote">起盤後自動掃描。範圍依太乙系統：時計掃未來三個月（逐時辰），其餘掃未來一年（逐日）。主篩＝四化命中（紫微流年引動·個人化）∩ 六壬 PR90；符合者依日期序表列，並列太乙主客、逐筆疊合奇門最吉方。底部緞帶＝太乙主客（靛·利主／赭·利客）。</span>
   </div>
   <canvas id="scanCv" style="display:none"></canvas>
   <div id="scanBest"></div>
@@ -1431,67 +1431,75 @@ function jdnOf(y,m,d){ const a=(14-m)/12|0, y2=y+4800-a, m2=m+12*a-3;
 const GZ_ANCHOR = jdnOf(1949,10,1);
 function dayGZ(t){ const n=((jdnOf(t.getFullYear(),t.getMonth()+1,t.getDate())-GZ_ANCHOR)%60+60)%60;
   return GZ_STEMS[n%10]+GZ_BR[n%12]; }
-/* 四化欄（其二·讀引擎面板引動日表）：
-   起盤後自紫微 iframe 抓現成之流年四化引動日清單，建「MMDD → [{化,星,月命中}]」索引；
-   掃描日比對之，命中即顯示（如 祿天同）；若該日亦在流月卡之引動清單，星後加上標「月」。
-   語意特徵鎖定（祿權科忌＋星＋日期串），不寫死 class；抓不到則提示而非靜默。 */
+/* 四化主篩（其二·讀引擎面板引動日表，逐月卡解析）：
+   起盤後自紫微 iframe 抓十二月卡之流年四化引動日清單，建「MMDD → [{化,星,月命中}]」索引。
+   逐卡解析：一張卡含祿權科忌四行＋卡首月份；卡內日期即該月之流年引動日，
+   若該卡標「流月四化命中」則其日兼為流月引動（月命中）。全形冒號/頓號/空白皆容錯。 */
 let SIHUA_IDX = null, SIHUA_DIAG = "", SIHUA_WARNED = false;
-const HUA_CH = {"祿":"祿","權":"權","科":"科","忌":"忌"};
 function pad2(n){ return String(n).padStart(2,"0"); }
-/* 解析一段文字如「祿天同：4/19、5/1、5/13」→ {hua:"祿",star:"天同",days:[[4,19],[5,1],[5,13]]} */
-function parseHuaLine(txt){
-  const m = txt.match(/^\s*([祿權科忌])\s*([\u4e00-\u9fa5]{1,3})\s*[:：]\s*(.+)$/);
-  if(!m) return null;
-  const days = [];
-  (m[3].match(/\d{1,2}\s*\/\s*\d{1,2}/g) || []).forEach(d=>{
-    const mm = d.match(/(\d{1,2})\s*\/\s*(\d{1,2})/);
-    if(mm) days.push([+mm[1], +mm[2]]);
+/* 從一段文字抽出所有 "祿權科忌 星：M/D、M/D…" 行 → [{hua,star,days:[[m,d]]}] */
+function parseHuaLines(txt){
+  const out = [];
+  txt.split(/\n+/).forEach(raw=>{
+    const line = raw.replace(/\s+/g,"");
+    const m = line.match(/([祿權科忌])([\u4e00-\u9fa5]{1,3})[:：](.+)/);
+    if(!m) return;
+    const days = [];
+    (m[3].match(/\d{1,2}[\/／]\d{1,2}/g) || []).forEach(d=>{
+      const mm = d.match(/(\d{1,2})[\/／](\d{1,2})/);
+      if(mm) days.push([+mm[1], +mm[2]]);
+    });
+    if(days.length) out.push({hua:m[1], star:m[2], days});
   });
-  return {hua:m[1], star:m[2], days};
+  return out;
 }
 function buildSihuaIndex(){
   SIHUA_IDX = null; SIHUA_DIAG = "";
   let doc;
   try{ doc = FRAMES.ziwei.contentDocument; }catch(e){ SIHUA_DIAG = "紫微 iframe 無法存取"; return; }
-  /* 收集所有「祿權科忌 星：日期…」文字行；分辨流年（十二月卡通篇）與流月（單月卡內） */
-  const nodes = [...doc.querySelectorAll("body *")].filter(e=>{
-    if(e.children.length > 3) return false;
-    const t = (e.innerText||"").trim();
-    return /^[祿權科忌][\u4e00-\u9fa5]{1,3}[:：].*\d\/\d/.test(t);
-  });
-  if(!nodes.length){ SIHUA_DIAG = "面板未見引動日清單（命主填妥、起盤、且面板停於流年四化檢視？）"; return; }
-  const idx = {};
-  const add = (mo, day, rec)=>{
-    const k = pad2(mo)+pad2(day);
-    (idx[k] = idx[k] || []).push(rec);
-  };
-  /* 面板多為十二月卡，每卡四行（祿權科忌）。將每一行之日期全部登錄。
-     「月命中」判定：同卡內另有標題顯示該月，且該日屬本卡月份 → 視為流月引動；
-     簡化可靠作法：凡解析成功者皆為流年引動日；月命中另由月卡標記偵測。 */
-  nodes.forEach(n=>{
-    const p = parseHuaLine(n.innerText.trim());
-    if(!p) return;
-    p.days.forEach(([mo,day])=> add(mo, day, {hua:p.hua, star:p.star, month:false}));
-  });
-  SIHUA_IDX = idx;
-}
-function sihuaCell(t){
-  if(SIHUA_IDX === null){
-    if(!SIHUA_WARNED){ SIHUA_WARNED = true; }
-    return null;
+  /* 尋月卡：含「祿…權…科…忌…」四化俱全、且帶日期者，取最貼近的容器為一卡 */
+  const bodyTxt = doc.body ? doc.body.innerText : "";
+  if(!/[祿權科忌][\u4e00-\u9fa5]{1,3}[:：].*\d{1,2}[\/／]\d{1,2}/.test(bodyTxt)){
+    SIHUA_DIAG = "面板未見引動日清單（命主填妥、起盤、面板停於流年四化檢視？）";
+    return;
   }
-  const k = pad2(t.getMonth()+1)+pad2(t.getDate());
-  const hits = SIHUA_IDX[k];
-  if(!hits || !hits.length) return null;
-  /* 去重（同星同化只留一筆，月命中取或值） */
-  const map = {};
-  hits.forEach(h=>{
-    const kk = h.hua+h.star;
-    if(!map[kk]) map[kk] = {hua:h.hua, star:h.star, month:h.month};
-    else map[kk].month = map[kk].month || h.month;
+  const cards = [...doc.querySelectorAll("div,section,li,td,article")].filter(el=>{
+    if(el.querySelector("div,section,li,td,article")) {
+      /* 僅取「最內層仍含四化四行」之卡：避免抓到包住全部的大容器 */
+      const inner = [...el.children].some(c=>/[祿權科忌][\u4e00-\u9fa5]{1,3}[:：].*\d{1,2}[\/／]\d{1,2}/.test(c.innerText||""));
+      if(inner) return false;
+    }
+    const t = el.innerText || "";
+    return (t.match(/[祿權科忌][\u4e00-\u9fa5]{1,3}[:：]/g)||[]).length >= 3
+        && /\d{1,2}[\/／]\d{1,2}/.test(t);
   });
+  if(!cards.length){ SIHUA_DIAG = "偵測到清單文字但無法框出月卡，請截圖面板 DOM 結構"; return; }
+  const idx = {};
+  const add = (mo, day, rec)=>{ const k = pad2(mo)+pad2(day); (idx[k]=idx[k]||[]).push(rec); };
+  cards.forEach(card=>{
+    const txt = card.innerText || "";
+    const isMonthHit = /流月四化命中/.test(txt);
+    parseHuaLines(txt).forEach(h=>{
+      h.days.forEach(([mo,day])=> add(mo, day, {hua:h.hua, star:h.star, month:isMonthHit}));
+    });
+  });
+  SIHUA_IDX = Object.keys(idx).length ? idx : null;
+  if(!SIHUA_IDX) SIHUA_DIAG = "月卡框出但未解析出任何引動日";
+}
+/* 回傳該日四化命中陣列（無則 null） */
+function sihuaHits(t){
+  if(SIHUA_IDX === null) return null;
+  const hits = SIHUA_IDX[pad2(t.getMonth()+1)+pad2(t.getDate())];
+  if(!hits || !hits.length) return null;
+  const map = {};
+  hits.forEach(h=>{ const kk=h.hua+h.star;
+    if(!map[kk]) map[kk]={hua:h.hua,star:h.star,month:h.month};
+    else map[kk].month = map[kk].month || h.month; });
   const order = {"祿":0,"權":1,"科":2,"忌":3};
-  return Object.values(map).sort((a,b)=>order[a.hua]-order[b.hua]).map(h=>{
+  return Object.values(map).sort((a,b)=>order[a.hua]-order[b.hua]);
+}
+function sihuaCellHTML(hits){
+  return hits.map(h=>{
     const sup = h.month ? '<sup class="mFlag">月</sup>' : "";
     const body = h.hua + h.star + sup;
     return h.hua === "忌" ? `<span style="color:var(--bad)">${body}</span>` : body;
@@ -1693,32 +1701,48 @@ async function startScan(){
       return;
     }
     drawScanChart(samples, env, per, bands, hourly);
-    /* PR95 篩選（於掃描樣本內取分位），依日期序表列 */
+    /* 主篩：四化命中（個人化）∩ 六壬 PR90。欄序＝計算序：四化 · 六壬 · 太乙 · 奇門 */
+    buildSihuaIndex();
     const src = per.length ? per : env;
     const nums = src.filter(v=>typeof v === "number").slice().sort((a,b)=>a-b);
-    const thr = nums[Math.min(Math.floor(nums.length*0.95), nums.length-1)];
+    const thr = nums[Math.min(Math.floor(nums.length*0.90), nums.length-1)];
     const picks = [];
-    src.forEach((v,i)=>{ if(typeof v === "number" && v >= thr) picks.push({i, v}); });
-    let html = `圖例：緞帶＝太乙主客（<span style="color:#7fa3d9">靛·利主</span>／<span style="color:#c9a35f">赭·利客</span>）　金線＝事境` +
+    if(SIHUA_IDX !== null){
+      src.forEach((v,i)=>{
+        if(typeof v !== "number" || v < thr) return;       /* 六壬 PR90 */
+        const hits = sihuaHits(samples[i]);
+        if(hits) picks.push({i, v, hits});                  /* 且四化命中 */
+      });
+    }
+    let html = `圖例：四化＝紫微流年引動（<sup class="mFlag">月</sup>＝兼流月命中）　緞帶＝太乙主客（<span style="color:#7fa3d9">靛·利主</span>／<span style="color:#c9a35f">赭·利客</span>）　金線＝事境` +
                (per.length ? "　綠線＝個人" : "（未填命主，無個人線）") +
-               `　｜　入列門檻（PR95）：${thr}`;
-    buildSihuaIndex();
-    html += `<table><tr><th>${hourly ? "時點" : "日期"}</th><th>六壬分</th><th>太乙</th><th>四化</th><th>奇門最吉方</th></tr>`;
+               `　｜　主篩：四化命中 ∩ 六壬 PR90（門檻 ${typeof thr==="number"?thr.toFixed(2):"—"}）`;
+    if(SIHUA_IDX === null){
+      html += `<div style="color:var(--warn);font-size:12px;margin-top:8px">四化為主篩，但引動日表未建立——` +
+              (SIHUA_DIAG || "未抓到") + `　截圖報告區自診行即可對齊。</div>`;
+      $("scanBest").innerHTML = html;
+      if(RECS.ziwei && RECS.ziwei.data && !SIHUA_WARNED){
+        SIHUA_WARNED = true;
+        report("warn","擇時掃描","四化主篩未建立：" + (SIHUA_DIAG || "紫微引動日表未抓到") + "　截圖此行即可對齊。","castphase");
+      }
+      note.textContent = "四化表未就緒，無法主篩——見提示。";
+      return;
+    }
+    if(!picks.length){
+      html += `<div style="color:var(--dim);font-size:12px;margin-top:8px">此範圍內無「四化命中且六壬 PR90」之時點。</div>`;
+      $("scanBest").innerHTML = html;
+      note.textContent = "掃描完成：無符合交集之時點。";
+      return;
+    }
+    html += `<table><tr><th>${hourly ? "時點" : "日期"}</th><th>四化</th><th>六壬分</th><th>太乙</th><th>奇門最吉方</th></tr>`;
     picks.forEach(p=>{
       const b = bands[p.i];
       const tag = b > 0 ? '<td class="zh">主</td>' : b < 0 ? '<td class="ke">客</td>' : "<td>–</td>";
-      const sh = sihuaCell(samples[p.i]);
       const tCell = `${scanFmt(samples[p.i], hourly)}　<span class="dgz">${dayGZ(samples[p.i])}日</span>`;
-      html += `<tr><td>${tCell}</td><td>${p.v}</td>${tag}<td class="sh">${sh || "–"}</td><td id="qm_${p.i}">…</td></tr>`;
+      html += `<tr><td>${tCell}</td><td class="sh">${sihuaCellHTML(p.hits)}</td><td>${p.v}</td>${tag}<td id="qm_${p.i}">…</td></tr>`;
     });
     html += `</table>`;
     $("scanBest").innerHTML = html;
-    if(RECS.ziwei && RECS.ziwei.data && SIHUA_IDX === null && !SIHUA_WARNED){
-      SIHUA_WARNED = true;
-      report("warn","擇時掃描","四化欄未建立：" + (SIHUA_DIAG || "紫微引動日表未抓到") + "　截圖此行即可對齊。","castphase");
-      $("scanBest").insertAdjacentHTML("beforeend",
-        `<div style="color:var(--warn);font-size:12px;margin-top:6px">四化未取得——詳頂部報告區之自診行。</div>`);
-    }
     note.textContent = "曲線完成，奇門疊合中…";
     await qimenSweep(picks, samples, hourly);
   }catch(err){
