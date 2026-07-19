@@ -1462,38 +1462,39 @@ function buildSihuaIndex(){
     SIHUA_DIAG = "面板未見引動日清單（命主填妥、起盤、面板停於流年四化檢視？）";
     return;
   }
-  /* 框月卡：最內層仍含 ≥3 條四化行者 */
-  const cards = [...doc.querySelectorAll("div,section,li,td,article")].filter(el=>{
-    const t = el.innerText || "";
-    if((t.match(/[祿權科忌][\u4e00-\u9fa5]{1,3}[:：]/g)||[]).length < 3) return false;
-    if(!/\d{1,2}[\/／]\d{1,2}/.test(t)) return false;
-    const inner = [...el.children].some(c=>
-      (((c.innerText||"").match(/[祿權科忌][\u4e00-\u9fa5]{1,3}[:：]/g)||[]).length >= 3));
-    return !inner;   /* 取最內層卡，避開包住全部的大容器 */
-  });
-  if(!cards.length){ SIHUA_DIAG = "偵測到清單文字但無法框出月卡，請截圖面板 DOM 結構"; return; }
-  const idx = {};   /* MMDD → { 化星 : {hua,star,month} } 逐星去重、月命中為或值 */
+  const idx = {};   /* MMDD → { 化星 : {hua,star,month} } */
   const put = (mo, day, hua, star, isMonth)=>{
     const k = pad2(mo)+pad2(day), kk = hua+star;
     const bucket = (idx[k] = idx[k] || {});
     if(!bucket[kk]) bucket[kk] = {hua, star, month:isMonth};
     else bucket[kk].month = bucket[kk].month || isMonth;
   };
-  /* 逐卡、逐條引動日各自判定；流月命中集另記（一星一日獨立，一月雙化不漏） */
-  cards.forEach(card=>{
-    const txt = card.innerText || "";
-    const isMonthCard = /流月四化命中/.test(txt);
-    parseHuaLines(txt).forEach(h=>{
-      h.days.forEach(([mo,day])=> put(mo, day, h.hua, h.star, false));   /* 流年層 */
-    });
-    if(isMonthCard){
-      parseHuaLines(txt).forEach(h=>{
-        h.days.forEach(([mo,day])=> put(mo, day, h.hua, h.star, true));  /* 疊上月命中 */
-      });
-    }
+  /* 流年層：全頁所有四化引動行（不框卡，直接抽） */
+  const nodes = [...doc.querySelectorAll("body *")].filter(e=>{
+    if(e.children.length) return false;                 /* 葉節點，避免重複計入 */
+    return /[祿權科忌][\u4e00-\u9fa5]{1,3}[:：].*\d{1,2}[\/／]\d{1,2}/.test(e.innerText||"");
   });
+  const src = nodes.length ? nodes : [doc.body];        /* 退路：整頁一次解析 */
+  src.forEach(n=> parseHuaLines(n.innerText||"").forEach(h=>{
+    h.days.forEach(([mo,day])=> put(mo, day, h.hua, h.star, false));
+  }));
+  /* 流月命中：認「流月四化命中」錨，向上尋其所屬月卡容器，抽該容器內四化行標月命中 */
+  const marks = [...doc.querySelectorAll("body *")].filter(e=>
+    !e.children.length && /流月四化命中/.test(e.textContent||""));
+  marks.forEach(mk=>{
+    let card = mk;
+    /* 上爬至「含四化引動日」之最小容器 */
+    for(let up=0; up<6 && card.parentElement; up++){
+      card = card.parentElement;
+      if(/[祿權科忌][\u4e00-\u9fa5]{1,3}[:：].*\d{1,2}[\/／]\d{1,2}/.test(card.innerText||"")) break;
+    }
+    parseHuaLines(card.innerText||"").forEach(h=>{
+      h.days.forEach(([mo,day])=> put(mo, day, h.hua, h.star, true));
+    });
+  });
+  if(!marks.length) SIHUA_DIAG = "（流年已建，但未見『流月四化命中』標記——月命中未疊）";
   SIHUA_IDX = Object.keys(idx).length ? idx : null;
-  if(!SIHUA_IDX) SIHUA_DIAG = "月卡框出但未解析出任何引動日";
+  if(!SIHUA_IDX) SIHUA_DIAG = "面板文字在，但未解析出任何引動日，請截圖 DOM 結構";
 }
 /* 回傳該日四化命中陣列（無則 null） */
 function sihuaHits(t){
