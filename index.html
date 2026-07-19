@@ -1754,7 +1754,7 @@ async function startScan(){
     /* 主篩：四化命中（個人化）∩ 六壬 PR90。欄序＝計算序：四化 · 六壬 · 太乙 · 奇門 */
     buildSihuaIndex();
     if(SIHUA_TITLES && SIHUA_TITLES.length){
-      report("warn","四化診斷","紅框卡標題解析 — " + SIHUA_TITLES.join(" ｜ ") + "（此為暫時診斷行，對準後移除）","castphase");
+      report("warn","四化診斷","紅框卡標題解析 — " + SIHUA_TITLES.join(" ｜ "),"castphase");
     }
     const src = per.length ? per : env;
     const nums = src.filter(v=>typeof v === "number").slice().sort((a,b)=>a-b);
