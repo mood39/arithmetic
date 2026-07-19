@@ -1435,7 +1435,7 @@ function dayGZ(t){ const n=((jdnOf(t.getFullYear(),t.getMonth()+1,t.getDate())-G
    起盤後自紫微 iframe 抓十二月卡之流年四化引動日清單，建「MMDD → [{化,星,月命中}]」索引。
    逐卡解析：一張卡含祿權科忌四行＋卡首月份；卡內日期即該月之流年引動日，
    若該卡標「流月四化命中」則其日兼為流月引動（月命中）。全形冒號/頓號/空白皆容錯。 */
-let SIHUA_IDX = null, SIHUA_DIAG = "", SIHUA_WARNED = false;
+let SIHUA_IDX = null, SIHUA_DIAG = "", SIHUA_WARNED = false, SIHUA_TITLES = [];
 function pad2(n){ return String(n).padStart(2,"0"); }
 /* 從一段文字抽出所有 "祿權科忌 星：M/D、M/D…" 行 → [{hua,star,days:[[m,d]]}] */
 function parseHuaLines(txt){
@@ -1474,6 +1474,7 @@ function buildSihuaIndex(){
   /* 紅框卡＝含「流月四化命中」錨之「最小、僅含一個宮位」祖先（保證不跨月卡）。
      其標題另有流月化星（祿/權/科/忌其一），僅該化之引動行為「年月對齊」。 */
   const redInfo = [];   /* [{card, hua}] hua＝該月流月所化（標題標示） */
+  SIHUA_TITLES = [];
   const marks = [...doc.querySelectorAll("body *")].filter(e=>
     !e.children.length && /流月四化命中/.test(e.textContent||""));
   marks.forEach(mk=>{
@@ -1484,9 +1485,25 @@ function buildSihuaIndex(){
       if(gongCount(card) > 1) break;
     }
     if(!best) return;
-    /* 流月化星：取標題「流月四化命中」之前、緊鄰的單一化字（祿/權/科/忌），可多個 */
-    const head = (best.innerText||"").split("流月四化命中")[0];
-    const huaSet = new Set((head.match(/[祿權科忌]/g)||[]).slice(-2));   /* 標題末端之化字（通常一個，臘月有兩個） */
+    /* 流月化星：標題列之單字色塊標籤。須排除四化引動行的行首徽章（忌廉貞：… 之「忌」）。
+       判別：該單字標籤之後、同一列不接「星名：」——即其父容器文字不是引動行。 */
+    const huaSet = new Set();
+    [...best.querySelectorAll("*")].forEach(el=>{
+      if(el.children.length) return;
+      const tx = (el.textContent||"").trim();
+      if(!/^[祿權科忌]$/.test(tx)) return;
+      /* 父/祖容器若像引動行（含「單字＋星名：日期」），則此為行首徽章，跳過 */
+      let host = el.parentElement, rowlike = false;
+      for(let u=0; u<3 && host; u++, host=host.parentElement){
+        if(/^[祿權科忌][\\u4e00-\\u9fa5]{1,3}[:：]/.test((host.textContent||"").trim())){ rowlike = true; break; }
+      }
+      if(!rowlike) huaSet.add(tx);   /* 非引動行 → 標題化星 */
+    });
+    if(!huaSet.size){
+      const head = (best.innerText||"").split("流月四化命中")[0];
+      (head.match(/[祿權科忌]/g)||[]).forEach(c=>huaSet.add(c));
+    }
+    SIHUA_TITLES.push("卡" + ((best.innerText||"").slice(0,6)) + " → {" + [...huaSet].join("") + "}");
     redInfo.push({card:best, hua:huaSet});
   });
   const alignOf = (el)=>{                 /* 該葉節點若在某紅框卡內，回傳該卡流月化字集，否則 null */
@@ -1723,6 +1740,9 @@ async function startScan(){
     drawScanChart(samples, env, per, bands, hourly);
     /* 主篩：四化命中（個人化）∩ 六壬 PR90。欄序＝計算序：四化 · 六壬 · 太乙 · 奇門 */
     buildSihuaIndex();
+    if(SIHUA_TITLES && SIHUA_TITLES.length){
+      report("warn","四化診斷","紅框卡標題解析 — " + SIHUA_TITLES.join(" ｜ ") + "（此為暫時診斷行，對準後移除）","castphase");
+    }
     const src = per.length ? per : env;
     const nums = src.filter(v=>typeof v === "number").slice().sort((a,b)=>a-b);
     const thr = nums[Math.min(Math.floor(nums.length*0.90), nums.length-1)];
