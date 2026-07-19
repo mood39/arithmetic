@@ -1467,32 +1467,36 @@ function buildSihuaIndex(){
     const k = pad2(mo)+pad2(day), kk = hua+star;
     const bucket = (idx[k] = idx[k] || {});
     if(!bucket[kk]) bucket[kk] = {hua, star, month:isMonth};
-    else bucket[kk].month = bucket[kk].month || isMonth;
+    else bucket[kk].month = bucket[kk].month || isMonth;   /* 對齊為或值：任一卡標對齊即對齊 */
   };
-  /* 流年層：全頁所有四化引動行（不框卡，直接抽） */
-  const nodes = [...doc.querySelectorAll("body *")].filter(e=>{
-    if(e.children.length) return false;                 /* 葉節點，避免重複計入 */
-    return /[祿權科忌][\u4e00-\u9fa5]{1,3}[:：].*\d{1,2}[\/／]\d{1,2}/.test(e.innerText||"");
-  });
-  const src = nodes.length ? nodes : [doc.body];        /* 退路：整頁一次解析 */
-  src.forEach(n=> parseHuaLines(n.innerText||"").forEach(h=>{
-    h.days.forEach(([mo,day])=> put(mo, day, h.hua, h.star, false));
-  }));
-  /* 流月命中：認「流月四化命中」錨，向上尋其所屬月卡容器，抽該容器內四化行標月命中 */
+  /* 框月卡：認「流月四化命中」錨，向上尋所屬月卡；紅框卡(有錨)之引動日＝年月對齊(標月)，
+     其餘月卡之引動日＝純流年命中(不標)。逐卡分流，不先建全表再蓋章。 */
   const marks = [...doc.querySelectorAll("body *")].filter(e=>
     !e.children.length && /流月四化命中/.test(e.textContent||""));
+  const redCards = new Set();
   marks.forEach(mk=>{
     let card = mk;
-    /* 上爬至「含四化引動日」之最小容器 */
     for(let up=0; up<6 && card.parentElement; up++){
       card = card.parentElement;
       if(/[祿權科忌][\u4e00-\u9fa5]{1,3}[:：].*\d{1,2}[\/／]\d{1,2}/.test(card.innerText||"")) break;
     }
+    redCards.add(card);
     parseHuaLines(card.innerText||"").forEach(h=>{
-      h.days.forEach(([mo,day])=> put(mo, day, h.hua, h.star, true));
+      h.days.forEach(([mo,day])=> put(mo, day, h.hua, h.star, true));   /* 年月對齊 */
     });
   });
-  if(!marks.length) SIHUA_DIAG = "（流年已建，但未見『流月四化命中』標記——月命中未疊）";
+  /* 純流年層：全頁葉節點四化行，但屬紅框卡者略過（已於上一趟以對齊登錄） */
+  const leaves = [...doc.querySelectorAll("body *")].filter(e=>{
+    if(e.children.length) return false;
+    if(!/[祿權科忌][\u4e00-\u9fa5]{1,3}[:：].*\d{1,2}[\/／]\d{1,2}/.test(e.innerText||"")) return false;
+    for(const rc of redCards){ if(rc.contains(e)) return false; }
+    return true;
+  });
+  const src = leaves.length ? leaves : (redCards.size ? [] : [doc.body]);
+  src.forEach(n=> parseHuaLines(n.innerText||"").forEach(h=>{
+    h.days.forEach(([mo,day])=> put(mo, day, h.hua, h.star, false));
+  }));
+  if(!marks.length) SIHUA_DIAG = "（流年已建，但未見『流月四化命中』紅框卡——無年月對齊日）";
   SIHUA_IDX = Object.keys(idx).length ? idx : null;
   if(!SIHUA_IDX) SIHUA_DIAG = "面板文字在，但未解析出任何引動日，請截圖 DOM 結構";
 }
@@ -1507,7 +1511,7 @@ function sihuaHits(t){
 }
 function sihuaCellHTML(hits){
   return hits.map(h=>{
-    const sup = h.month ? '<sup class="mFlag">月</sup>' : "";
+    const sup = h.month ? '<sup class="mFlag">ᴹ</sup>' : "";
     const body = h.hua + h.star + sup;
     return h.hua === "忌" ? `<span style="color:var(--bad)">${body}</span>`
          : h.month ? `<span style="color:var(--ok)">${body}</span>` : body;
@@ -1722,7 +1726,7 @@ async function startScan(){
         if(hits) picks.push({i, v, hits});                  /* 且四化命中 */
       });
     }
-    let html = `圖例：四化＝紫微流年引動（<span style="color:var(--ok)">綠·兼流月命中<sup class="mFlag">月</sup></span>，忌恆朱）　緞帶＝太乙主客（<span style="color:#7fa3d9">靛·利主</span>／<span style="color:#c9a35f">赭·利客</span>）　金線＝事境` +
+    let html = `圖例：四化＝紫微流年引動命中（<span style="color:var(--ok)">綠·<sup class="mFlag">ᴹ</sup>＝年月對齊</span>，忌恆朱）　緞帶＝太乙主客（<span style="color:#7fa3d9">靛·利主</span>／<span style="color:#c9a35f">赭·利客</span>）　金線＝事境` +
                (per.length ? "　綠線＝個人" : "（未填命主，無個人線）") +
                `　｜　主篩：四化命中 ∩ 六壬 PR90（門檻 ${typeof thr==="number"?thr.toFixed(2):"—"}）`;
     if(SIHUA_IDX === null){
