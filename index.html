@@ -1474,6 +1474,8 @@ function buildSihuaIndex(){
   /* 紅框卡＝含「流月四化命中」錨之「最小、僅含一個宮位」祖先（保證不跨月卡）。
      其標題另有流月化星（祿/權/科/忌其一），僅該化之引動行為「年月對齊」。 */
   const redInfo = [];   /* [{card, hua}] hua＝該月流月所化（標題標示） */
+  const marks = [...doc.querySelectorAll("body *")].filter(e=>
+    !e.children.length && /流月四化命中/.test(e.textContent||""));
   marks.forEach(mk=>{
     let card = mk, best = null;
     for(let up=0; up<10 && card.parentElement; up++){
